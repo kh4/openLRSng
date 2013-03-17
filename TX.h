@@ -299,7 +299,7 @@ void loop(void)
   if ((time - lastSent) >= modem_params[bind_data.modem_params].interval) {
     lastSent = time;
 
-    if (ppmAge < 8) {
+    if (1) {
       uint8_t tx_buf[11];
       ppmAge++;
 

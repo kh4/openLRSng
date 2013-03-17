@@ -44,7 +44,7 @@
 // 1 = Original Flytron M1 Rx Board as TX (not verified)
 // 2 = Original M2/M3 Tx Board or OrangeRx UHF TX
 // 3 = OpenLRS Rx v2 Board works as TX
-#define TX_BOARD_TYPE 2
+#define TX_BOARD_TYPE 3
 
 //####### RX BOARD TYPE #######
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
@@ -68,7 +68,7 @@
 // 2 == 3mW
 // 1 == 1.6mW
 // 0 == 1.3mW
-#define DEFAULT_RF_POWER 7
+#define DEFAULT_RF_POWER 0
 
 //######### TRANSMISSION VARIABLES ##########
 #define DEFAULT_CARRIER_FREQUENCY 435000000  // Hz  startup frequency
@@ -86,7 +86,7 @@ static uint8_t default_rf_magic[4] = {'@', 'K', 'H', 'a'};
 //  0 -- 4800bps, best range, 20Hz update rate
 //  1 -- 9600bps, medium range, 40Hz update rate
 //  2 -- 19200bps, medium range, 50Hz update rate + telemetry backlink
-#define DEFAULT_DATARATE 1
+#define DEFAULT_DATARATE 2
 
 // helpper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
@@ -100,7 +100,7 @@ static uint8_t default_rf_magic[4] = {'@', 'K', 'H', 'a'};
 #define DEFAULT_BEACON_INTERVAL 10 // interval between beacon transmits (s)
 
 //### MISC DEBUG stuff
-//#define TX_TIMING // show time used to send packet (in uS) on serial
+#define TX_TIMING // show time used to send packet (in uS) on serial
 
 //### Forced PPM enablingthis will put RX into combined PPM/PWM mode
 //### having channels 1-7 available in PWM on slots CH1-CH4,CH6-CH8
