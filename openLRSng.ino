@@ -86,7 +86,8 @@ static uint8_t default_rf_magic[4] = {'@', 'K', 'H', 'a'};
 //  0 -- 4800bps, best range, 20Hz update rate
 //  1 -- 9600bps, medium range, 40Hz update rate
 //  2 -- 19200bps, medium range, 50Hz update rate + telemetry backlink
-#define DEFAULT_DATARATE 2
+//  3 -- 34800bps
+#define DEFAULT_DATARATE 3
 
 // helpper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
