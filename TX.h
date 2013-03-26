@@ -300,7 +300,7 @@ void loop(void)
     lastSent = time;
 
     if (1) {
-      uint8_t tx_buf[11];
+      uint8_t tx_buf[30];
       ppmAge++;
 
       if (lastTelemetry) {
@@ -342,7 +342,7 @@ void loop(void)
 
       // Send the data over RF
       rfmSetChannel(bind_data.hopchannel[RF_channel]);
-      tx_packet(tx_buf, 11);
+      tx_packet(tx_buf, sizeof(tx_buf));
 
       //Hop to the next frequency
       RF_channel++;
