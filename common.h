@@ -19,11 +19,26 @@ volatile uint8_t rx_buf[11]; // RX buffer
 #define PPM_CHANNELS 8
 volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 };
 
+// use for tranparent serial bridge
+int getSerialData(uint8_t* buf, int maxCount)
+{
+	uint8_t i = 0;
+	while(Serial.available() && i < maxCount)
+	{
+		buf[i] = Serial.read();
+		i++;
+	}
+	return i;
+	// pad with zeroes.
+	//for (; i < TELEMETRY_DATASIZE; i++)
+	//	buf[i] = 0;
+}
+
+
 // conversion between microseconds 800-2200 and value 0-1023
 // 808-1000 == 0 - 11     (16us per step)
 // 1000-1999 == 12 - 1011 ( 1us per step)
 // 2000-2192 == 1012-1023 (16us per step)
-
 uint16_t servoUs2Bits(uint16_t x)
 {
   uint16_t ret;
