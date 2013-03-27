@@ -82,18 +82,16 @@
     <ClInclude Include="RX.h">
       <FileType>CppCode</FileType>
     </ClInclude>
-    <ClInclude Include="scanner.h" />
     <ClInclude Include="TX.h">
       <FileType>CppCode</FileType>
     </ClInclude>
-    <ClInclude Include="Visual Micro\.openLRSng.vsarduino.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties arduino.board.name="pro5v328" arduino.board.desc="Arduino Pro or Pro Mini (5V, 16 MHz) w/ ATmega328" arduino.board.property_bag="pro5v328.name=Arduino Pro or Pro Mini (5V, 16 MHz) w/ ATmega328&#xD;&#xA;pro5v328.upload.protocol=arduino&#xD;&#xA;pro5v328.upload.maximum_size=30720&#xD;&#xA;pro5v328.upload.speed=57600&#xD;&#xA;pro5v328.bootloader.low_fuses=0xFF&#xD;&#xA;pro5v328.bootloader.high_fuses=0xDA&#xD;&#xA;pro5v328.bootloader.extended_fuses=0x05&#xD;&#xA;pro5v328.bootloader.path=atmega&#xD;&#xA;pro5v328.bootloader.file=ATmegaBOOT_168_atmega328.hex&#xD;&#xA;pro5v328.bootloader.unlock_bits=0x3F&#xD;&#xA;pro5v328.bootloader.lock_bits=0x0F&#xD;&#xA;pro5v328.build.mcu=atmega328p&#xD;&#xA;pro5v328.build.f_cpu=16000000L&#xD;&#xA;pro5v328.build.core=arduino&#xD;&#xA;pro5v328.build.variant=standard&#xD;&#xA;" arduino.build.mcu="atmega328p" arduino.build.f_cpu="16000000L" arduino.build.core="arduino" arduino.upload.protocol="arduino" arduino.upload.speed="57600" arduino.upload.maximum_size="30720" arduino.upload.port="COM9" />
+      <UserProperties arduino.board.name="pro5v328" arduino.board.desc="Arduino Pro or Pro Mini (5V, 16 MHz) w/ ATmega328" arduino.board.property_bag="pro5v328.name=Arduino Pro or Pro Mini (5V, 16 MHz) w/ ATmega328&#xD;&#xA;pro5v328.upload.protocol=arduino&#xD;&#xA;pro5v328.upload.maximum_size=30720&#xD;&#xA;pro5v328.upload.speed=57600&#xD;&#xA;pro5v328.bootloader.low_fuses=0xFF&#xD;&#xA;pro5v328.bootloader.high_fuses=0xDA&#xD;&#xA;pro5v328.bootloader.extended_fuses=0x05&#xD;&#xA;pro5v328.bootloader.path=atmega&#xD;&#xA;pro5v328.bootloader.file=ATmegaBOOT_168_atmega328.hex&#xD;&#xA;pro5v328.bootloader.unlock_bits=0x3F&#xD;&#xA;pro5v328.bootloader.lock_bits=0x0F&#xD;&#xA;pro5v328.build.mcu=atmega328p&#xD;&#xA;pro5v328.build.f_cpu=16000000L&#xD;&#xA;pro5v328.build.core=arduino&#xD;&#xA;pro5v328.build.variant=standard&#xD;&#xA;" arduino.build.mcu="atmega328p" arduino.build.f_cpu="16000000L" arduino.build.core="arduino" arduino.upload.protocol="arduino" arduino.upload.speed="57600" arduino.upload.maximum_size="30720" arduino.upload.port="COM1" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>
