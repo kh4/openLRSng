@@ -39,7 +39,6 @@ int getSerialData(uint8_t* buf, int maxCount)
 // 808-1000 == 0 - 11     (16us per step)
 // 1000-1999 == 12 - 1011 ( 1us per step)
 // 2000-2192 == 1012-1023 (16us per step)
-
 uint16_t servoUs2Bits(uint16_t x)
 {
   uint16_t ret;

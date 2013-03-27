@@ -270,8 +270,6 @@ void setup(void)
 
 }
 
-
-
 void loop(void)
 {
 
@@ -284,16 +282,18 @@ void loop(void)
   }
 
   if (RF_Mode == Received) {
-    uint8_t rx_buf[TELEMETRY_DATASIZE];
-    // got telemetry packet
+    
+	//Serial.println("got telemetry packet");
 
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < TELEMETRY_DATASIZE; i++) {
-      rx_buf[i] = spiReadData();
-    }
-    // Serial.println(rx_buf[0]); // print rssi value
+
+	uint8_t len = spiReadData();
+    for (int16_t i = 0; i < len; i++)
+	{
+	  Serial.write(spiReadData());
+	}
   }
 
   uint32_t time = micros();
@@ -302,7 +302,7 @@ void loop(void)
     lastSent = time;
 
     if (1) {
-      uint8_t tx_buf[11 + TELEMETRY_DATASIZE]; // todo: struct.
+      uint8_t tx_buf[11 + 1 + TELEMETRY_DATASIZE]; // todo: struct.
       ppmAge++;
 
       if (lastTelemetry) {
@@ -338,6 +338,10 @@ void loop(void)
       tx_buf[9] = (PPM[7] & 0xff);
       tx_buf[10] = ((PPM[4] >> 8) & 3) | (((PPM[5] >> 8) & 3) << 2) | (((PPM[6] >> 8) & 3) << 4) | (((PPM[7] >> 8) & 3) << 6);
       sei();
+
+	  // Fill telemetry portion of packet
+	  tx_buf[11] = getSerialData(tx_buf + 12, TELEMETRY_DATASIZE);
+
 
       //Green LED will be on during transmission
       Green_LED_ON ;
