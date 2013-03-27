@@ -270,6 +270,8 @@ void setup(void)
 
 }
 
+
+
 void loop(void)
 {
 
@@ -282,13 +284,13 @@ void loop(void)
   }
 
   if (RF_Mode == Received) {
-    uint8_t rx_buf[4];
+    uint8_t rx_buf[TELEMETRY_DATASIZE];
     // got telemetry packet
 
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < 4; i++) {
+    for (int16_t i = 0; i < TELEMETRY_DATASIZE; i++) {
       rx_buf[i] = spiReadData();
     }
     // Serial.println(rx_buf[0]); // print rssi value
@@ -300,7 +302,7 @@ void loop(void)
     lastSent = time;
 
     if (1) {
-      uint8_t tx_buf[11];
+      uint8_t tx_buf[11 + TELEMETRY_DATASIZE]; // todo: struct.
       ppmAge++;
 
       if (lastTelemetry) {
@@ -342,7 +344,7 @@ void loop(void)
 
       // Send the data over RF
       rfmSetChannel(bind_data.hopchannel[RF_channel]);
-      tx_packet(tx_buf, 11);
+      tx_packet(tx_buf, sizeof(tx_buf));
 
       //Hop to the next frequency
       RF_channel++;
