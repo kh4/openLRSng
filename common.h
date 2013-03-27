@@ -14,10 +14,26 @@ uint8_t spiReadRegister(uint8_t address);
 void spiWriteRegister(uint8_t address, uint8_t data);
 void tx_packet(uint8_t* pkt, uint8_t size);
 void to_rx_mode(void);
-volatile uint8_t rx_buf[11]; // RX buffer
+volatile uint8_t rx_buf[1 + TELEMETRY_DATASIZE]; // RX buffer
 
 #define PPM_CHANNELS 8
 volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 };
+
+// use for tranparent serial bridge
+int getSerialData(uint8_t* buf, int maxCount)
+{
+	uint8_t i = 0;
+	while(Serial.available() && i < maxCount)
+	{
+		buf[i] = Serial.read();
+		i++;
+	}
+	return i;
+	// pad with zeroes.
+	//for (; i < TELEMETRY_DATASIZE; i++)
+	//	buf[i] = 0;
+}
+
 
 // conversion between microseconds 800-2200 and value 0-1023
 // 808-1000 == 0 - 11     (16us per step)

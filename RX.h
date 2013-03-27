@@ -315,6 +315,13 @@ void loop()
       sei();
     }
 
+	// serial bridge
+	const uint8_t len = rx_buf[11];
+	for (int16_t i = 0; i < len; i++)
+	{
+		Serial.write(rx_buf[12 + i]);
+	}
+
     if (rx_buf[0] == 0xF5) {
       if (!fs_saved) {
         save_failsafe_values();
@@ -326,9 +333,13 @@ void loop()
 
     if (modem_params[bind_data.modem_params].flags & 0x01) {
       // reply with telemetry
-      uint8_t telemetry_packet[4];
-      telemetry_packet[0] = last_rssi_value;
-      tx_packet(telemetry_packet, 4);
+	  //Serial.println("reply with telemetry");
+	
+      uint8_t tx_buf[1 + TELEMETRY_DATASIZE];
+
+	  tx_buf[0] = getSerialData(tx_buf + 1, TELEMETRY_DATASIZE);	  
+	  
+	  tx_packet(tx_buf, sizeof(tx_buf));
     }
 
     RF_Mode = Receive;
