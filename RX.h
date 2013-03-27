@@ -25,6 +25,8 @@ uint8_t lostpack = 0;
 
 boolean willhop = 0, fs_saved = 0;
 
+volatile uint8_t rx_buf[1 + TELEMETRY_DATASIZE]; // RX buffer
+
 ISR(TIMER1_OVF_vect)
 {
   if (ppmCountter >= PPM_CHANNELS) {
@@ -298,7 +300,8 @@ void loop()
 
     spiSendAddress(0x7f);   // Send the package read command
 
-    for (int16_t i = 0; i < 11; i++) {
+    for (int16_t i = 0; i < sizeof(rx_buf); i++)
+	{
       rx_buf[i] = spiReadData();
     }
 
