@@ -6,6 +6,8 @@
 
 #define EEPROM_OFFSET     0x00
 
+#define TELEMETRY_DATASIZE 18
+
 uint8_t bind_magic[4] = {0xDE, 0xC1, 0xBE, 0x15};
 static uint8_t default_hop_list[] = {DEFAULT_HOPLIST};
 
