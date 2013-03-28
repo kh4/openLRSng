@@ -25,7 +25,7 @@ uint8_t lostpack = 0;
 
 boolean willhop = 0, fs_saved = 0;
 
-volatile uint8_t rx_buf[1 + TELEMETRY_DATASIZE]; // RX buffer
+volatile uint8_t rx_buf[11 + 1 + TELEMETRY_DATASIZE]; // RX buffer
 
 ISR(TIMER1_OVF_vect)
 {
@@ -320,9 +320,16 @@ void loop()
 
 	// serial bridge
 	const uint8_t len = rx_buf[11];
-	for (int16_t i = 0; i < len; i++)
+	const uint8_t offset = 12;
+	//if (len > 0)
+	//{
+	//	Serial.print("got: ");
+	//	Serial.println(len);
+	//}
+
+	for (int16_t i = 0; i < len && i < sizeof(rx_buf) - offset; i++)
 	{
-		Serial.write(rx_buf[12 + i]);
+		Serial.write(rx_buf[offset + i]);
 	}
 
     if (rx_buf[0] == 0xF5) {
