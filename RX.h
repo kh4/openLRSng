@@ -345,9 +345,9 @@ void loop()
       // reply with telemetry
 	  //Serial.println("reply with telemetry");
 	
-      uint8_t tx_buf[1 + TELEMETRY_DATASIZE];
+      uint8_t tx_buf[1 + 6 +TELEMETRY_DATASIZE];
 
-	  tx_buf[0] = getSerialData(tx_buf + 1, TELEMETRY_DATASIZE);	  
+	  tx_buf[0] = getSerialData(tx_buf + 1, sizeof(tx_buf) - 1);	  
 	  
 	  tx_packet(tx_buf, sizeof(tx_buf));
     }

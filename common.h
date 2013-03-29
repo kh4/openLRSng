@@ -20,7 +20,7 @@ void to_rx_mode(void);
 volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 };
 
 // use for tranparent serial bridge
-int getSerialData(uint8_t* buf, int maxCount)
+int getSerialData(uint8_t* buf, uint8_t maxCount)
 {
 	uint8_t i = 0;
 	while(Serial.available() && i < maxCount)
@@ -29,9 +29,6 @@ int getSerialData(uint8_t* buf, int maxCount)
 		i++;
 	}
 	return i;
-	// pad with zeroes.
-	//for (; i < TELEMETRY_DATASIZE; i++)
-	//	buf[i] = 0;
 }
 
 
