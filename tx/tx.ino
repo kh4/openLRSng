@@ -1,3 +1,11 @@
+/****************************************************
+ * OpenLRSng transmitter code
+ ****************************************************/
+#include <FastSerial.h>  // this is now preventing program from running properly!
+#include <BetterStream.h>
+#include <AP_Common.h>
+#include <AP_Math.h>
+
 #include <Arduino.h>
 #include <EEPROM.h>
 
@@ -6,9 +14,8 @@
 #include "binding.h"
 #include "common.h"
 
-/****************************************************
- * OpenLRSng transmitter code
- ****************************************************/
+FastSerialPort0(Serial);
+
 uint8_t RF_channel = 0;
 
 uint8_t FSstate = 0; // 1 = waiting timer, 2 = send FS, 3 sent waiting btn release
@@ -243,7 +250,7 @@ void setup(void)
   digitalWrite(RF_OUT_INDICATOR, LOW);
 #endif
 
-  Serial.begin(SERIAL_BAUD_RATE);
+  Serial.begin(SERIAL_BAUD_RATE, 360, 16);
 
   if (bindReadEeprom()) {
     Serial.print("Loaded settings from EEPROM\n");

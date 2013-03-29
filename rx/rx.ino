@@ -1,6 +1,12 @@
 /****************************************************
  * OpenLRSng receiver code
  ****************************************************/
+
+#include <FastSerial.h>  // this is now preventing program from running properly!
+#include <BetterStream.h>
+#include <AP_Common.h>
+#include <AP_Math.h>
+
 #include <Arduino.h>
 #include <EEPROM.h>
 
@@ -8,6 +14,9 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
+
+
+FastSerialPort0(Serial);
 
 
 uint8_t RF_channel = 0;
@@ -225,7 +234,7 @@ void setup()
 
   setup_RSSI_output();
 
-  Serial.begin(SERIAL_BAUD_RATE);   //Serial Transmission
+  Serial.begin(SERIAL_BAUD_RATE, 360, 16);   //Serial Transmission
 
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 
@@ -353,7 +362,7 @@ void loop()
       // reply with telemetry
 	  //Serial.println("reply with telemetry");
 	
-      uint8_t tx_buf[1 + 6 +TELEMETRY_DATASIZE];
+      uint8_t tx_buf[1 + 11 +TELEMETRY_DATASIZE];
 
 	  tx_buf[0] = getSerialData(tx_buf + 1, sizeof(tx_buf) - 1);	  
 	  
