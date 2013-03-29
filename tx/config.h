@@ -37,7 +37,7 @@
 
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
-#define COMPILE_RX
+#define COMPILE_TX
 
 //####### TX BOARD TYPE #######
 // 0 = Original Flytron M1 Tx Board (not verified)
@@ -119,17 +119,4 @@ static uint8_t default_rf_magic[4] = {'@', 'K', 'H', 'a'};
 #  if ((DEFAULT_BEACON_FREQUENCY < 413000000) || (DEFAULT_BEACON_FREQUENCY>463000000))
 #    error BEACON_FREQUENCY is invalid
 #  endif
-#endif
-
-#include <Arduino.h>
-#include <EEPROM.h>
-
-#include "hardware.h"
-#include "binding.h"
-#include "common.h"
-
-#ifdef COMPILE_TX
-#include "TX.h"
-#else // COMPILE_RX
-#include "RX.h"
 #endif

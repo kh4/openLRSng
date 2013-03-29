@@ -1,3 +1,7 @@
+#ifndef _Common_Included_
+#define _Common_Included_
+
+
 //####### COMMON FUNCTIONS #########
 volatile uint8_t RF_Mode = 0;
 
@@ -544,3 +548,6 @@ void beacon_send(void)
   spiWriteRegister(0x07, RF22B_PWRSTATE_READY);
   Green_LED_OFF
 }
+
+
+#endif // _Common_Included_

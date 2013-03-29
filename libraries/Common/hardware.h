@@ -1,3 +1,6 @@
+#ifndef _HardWare_Included_
+#define _HardWare_Included_
+
 #if defined(COMPILE_TX)
 #define BOARD_TYPE TX_BOARD_TYPE
 #else
@@ -239,3 +242,5 @@ const uint16_t PWM_MASK[8] = { PWM_1_MASK, PWM_2_MASK, PWM_3_MASK, PWM_4_MASK, P
 #define IRQ_interrupt 0
 
 #endif
+
+#endif // _HardWare_Included_

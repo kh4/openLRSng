@@ -1,4 +1,8 @@
 // OpenLRSng binding
+#ifndef _Binding_Included_
+#define _Binding_Included_
+
+
 
 #define BINDING_POWER     0x00 // 1 mW
 #define BINDING_FREQUENCY 435000000 // Hz
@@ -156,3 +160,5 @@ void bindPrint(void)
 }
 
 
+
+#endif // _Binding_Included_

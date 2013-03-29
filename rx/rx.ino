@@ -1,6 +1,14 @@
 /****************************************************
  * OpenLRSng receiver code
  ****************************************************/
+#include <Arduino.h>
+#include <EEPROM.h>
+
+#include "config.h"
+#include "hardware.h"
+#include "binding.h"
+#include "common.h"
+
 
 uint8_t RF_channel = 0;
 
