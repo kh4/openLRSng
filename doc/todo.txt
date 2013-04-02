@@ -1,0 +1,86 @@
+===========================
+Ideas for improvements
+===========================
+
+General:
+- Extract to methods
+- Use state, enums etc instead of counter for controlling stuff like beacon, Failsafe etc.
+- Make separation of Tx, Rx, Scanner into something else than defines
+
+- Research if any RTOS is available for Arduino:
+  http://arduino.cc/forum/index.php?topic=138643.0
+  DuinOS is the port of FreeRTOS: 
+
+Beacon:
+- Turn off servo pulses when in beacon mode (disable pulses). to conserve as much battery capacity as possible.
+X Longer 5mW beacon (to be able to easier determine direction)
+X Initiate beacon on reset if no signal is detected for a while, Beacon was never send if firstpack not recieved.
+
+
+------------------
+serialbridge todo:
+------------------
+
+make structs (rx_transmit_buffer & tx_transmit_buffer)
+create header
+move size to header, dont use a whole byte
+
+
+
+minimize tx packets if cooms are down (detect by ack?) to have greater chance of recovery...
+
+
+-------
+Links:
+-------
+link to software discussion on RCG: http://www.rcgroups.com/forums/showthread.php?t=1782034
+Discussion about HK ORange Rx: http://www.rcgroups.com/forums/showthread.php?t=1778553&page=20
+
+
+
+---------------------
+Investigation:
+---------------------
+
+Packet construction summary:
+ 4 byte header, 2 byte synch, variable pkt size
+ no broadcast, check all four header bytes (all bits)
+ 60kHz channel spacing
+ 40 bit preamble
+ preath = 5 (20bits), rssioff = 2
+
+
+
+- Is burst mode utilized?
+
+- Is 'rf_magic' used as sync word?
+  Answer: No, Rfmagic is in header, sync word is hardcoded to 0x2d, 0xd4 (two bytes used not four).
+
+- Is CRC used
+  Answer: Yes
+
+- What preample time is used?
+  Answer: 10 nibbles (40 bit preamble)
+
+- Is header check used,
+  Answer: yes, rf
+
+- Could antenna diversity be easily implemented with PIN diodes, using GPIO pins?
+  How does RX and TX pins work (they are coupled to GPIO1, and 2).
+  
+
+- Detect invalid preample early feature used (nice in FHSS)? s6.8
+  Answer:
+
+- Skip VCO calibration in FHSS says the manual, is this done?
+  Answer:
+
+- Is crystal capacitance adjusted, p36
+  Answer:
+
+- Is data whitening or manchester endcoding enabled p42
+  Answer:
+  
+- Is onboard tempsensor working, value could be sent in telemetry =)
+  Answer:
+
