@@ -250,7 +250,8 @@ void setup(void)
   digitalWrite(RF_OUT_INDICATOR, LOW);
 #endif
 
-  Serial.begin(SERIAL_BAUD_RATE, 360, 16);
+  Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
+  Serial.set_blocking_writes(false);
 
   if (bindReadEeprom()) {
     Serial.print("Loaded settings from EEPROM\n");

@@ -234,7 +234,8 @@ void setup()
 
   setup_RSSI_output();
 
-  Serial.begin(SERIAL_BAUD_RATE, 360, 16);   //Serial Transmission
+  Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
+  Serial.set_blocking_writes(false);
 
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 
