@@ -35,6 +35,14 @@
 //### CONFIGURATION SECTION ###
 //#############################
 
+//####### SERIAL DEBUG #######
+// Enable the TTL serial line for debug propouses
+#define DEBUG
+
+//####### SPECTRUM ANALYSER #######
+// Enable spectrum analyser functionality on the firmware
+#define ANALYSER
+
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
 #define COMPILE_TX
@@ -51,7 +59,8 @@
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
 #define RX_BOARD_TYPE 3
 
-//###### SERIAL PORT SPEED - just debugging atm. #######
+//###### SERIAL PORT SPEED #######
+// This baud rate will *only* be used if DEBUG is defined
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
 
 //###### Should receiver always bind on bootup for 0.5s ######

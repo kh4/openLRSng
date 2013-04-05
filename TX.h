@@ -86,6 +86,7 @@ void setupPPMinput(void)
 }
 #endif
 
+#ifdef DEBUG
 void handleCLI(char c)
 {
   switch (c) {
@@ -93,21 +94,26 @@ void handleCLI(char c)
     bindPrint();
     break;
 
+#ifdef ANALYSER
   case '#':
     buzzerOff();
     scannerMode();
     break;
+#endif
   }
 }
+#endif
 
 void bindMode(void)
 {
   uint32_t prevsend = millis();
   init_rfm(1);
 
+#ifdef DEBUG
   while (Serial.available()) {
     Serial.read();    // flush serial
   }
+#endif
 
   while (1) {
     if (millis() - prevsend > 200) {
@@ -119,9 +125,11 @@ void bindMode(void)
       buzzerOff();
     }
 
+#ifdef DEBUG
     while (Serial.available()) {
       handleCLI(Serial.read());
     }
+#endif
   }
 }
 
@@ -170,11 +178,15 @@ void checkButton(void)
         bindRandomize();
       }
       bindWriteEeprom();
+#ifdef DEBUG
       bindPrint();
+#endif
     }
 
     // Enter binding mode, automatically after recoding or when pressed for shorter time.
+#ifdef DEBUG
     Serial.println("Entering binding mode\n");
+#endif
     bindMode();
   }
 }
@@ -238,15 +250,23 @@ void setup(void)
 
   buzzerInit();
 
+#if defined(DEBUG) || defined(ANALYSER)
   Serial.begin(SERIAL_BAUD_RATE);
+#endif
 
   if (bindReadEeprom()) {
+#ifdef DEBUG
     Serial.print("Loaded settings from EEPROM\n");
+#endif
   } else {
+#ifdef DEBUG
     Serial.print("EEPROM data not valid, reiniting\n");
+#endif
     bindInitDefaults();
     bindWriteEeprom();
+#ifdef DEBUG
     Serial.print("EEPROM data saved\n");
+#endif
   }
 
   setupPPMinput();
@@ -277,7 +297,9 @@ void loop(void)
 {
 
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
+#ifdef DEBUG
     Serial.println("module locked?");
+#endif
     Red_LED_ON;
     init_rfm(0);
     rx_reset();

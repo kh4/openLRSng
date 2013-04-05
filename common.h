@@ -60,6 +60,7 @@ uint16_t servoBits2Us(uint16_t x)
   return ret;
 }
 
+#ifdef ANALYSER
 // Spectrum analyser 'submode'
 void scannerMode(void)
 {
@@ -174,6 +175,7 @@ void scannerMode(void)
 
   //never exit!!
 }
+#endif
 
 
 void RFM22B_Int()
