@@ -117,6 +117,7 @@ again:
   }
 }
 
+#ifdef DEBUG
 void bindPrint(void)
 {
 
@@ -153,5 +154,4 @@ void bindPrint(void)
   Serial.print("9) Beacon Deadtime:");
   Serial.println(bind_data.beacon_deadtime);
 }
-
-
+#endif

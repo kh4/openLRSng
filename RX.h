@@ -134,11 +134,15 @@ uint8_t bindReceive(uint32_t timeout)
   init_rfm(1);
   RF_Mode = Receive;
   to_rx_mode();
+#ifdef DEBUG
   Serial.println("Waiting bind\n");
+#endif
 
   while ((!timeout) || ((millis() - start) < timeout)) {
     if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
-      Serial.println("Got pkt\n");
+#ifdef DEBUG
+	Serial.println("Got pkt\n");
+#endif
       RF_Mode = Receive;
       spiSendAddress(0x7f);   // Send the package read command
 
@@ -147,7 +151,9 @@ uint8_t bindReceive(uint32_t timeout)
       }
 
       if (bind_data.version == BINDING_VERSION) {
+#ifdef DEBUG
         Serial.println("data good\n");
+#endif
         return 1;
       } else {
         rx_reset();
@@ -215,30 +221,40 @@ void setup()
 
   setup_RSSI_output();
 
+#if defined(DEBUG) || defined(ANALYSER)
   Serial.begin(SERIAL_BAUD_RATE);   //Serial Transmission
+#endif
 
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 
   sei();
   Red_LED_ON;
 
+#ifdef ANALYSER
   if (checkIfConnected(PWM_3,PWM_4)) { // ch1 - ch2 --> force scannerMode
     scannerMode();
   }
+#endif
 
   if (checkIfConnected(PWM_1,PWM_2) || (!bindReadEeprom())) {
+#ifdef DEBUG
     Serial.print("EEPROM data not valid or bind jumpper set, forcing bind\n");
+#endif
 
     if (bindReceive(0)) {
       bindWriteEeprom();
+#ifdef DEBUG
       Serial.println("Saved bind data to EEPROM\n");
+#endif
       Green_LED_ON;
     }
   } else {
 #ifdef RX_ALWAYS_BIND
     if (bindReceive(500)) {
       bindWriteEeprom();
+#ifdef DEBUG
       Serial.println("Saved bind data to EEPROM\n");
+#endif
       Green_LED_ON;
     }
 #endif
@@ -255,8 +271,11 @@ void setup()
   PPM_output = 1;
 #endif
 
+#ifdef DEBUG
   Serial.print("Entering normal mode with PPM=");
   Serial.println(PPM_output);
+#endif
+
   init_rfm(0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
   rfmSetChannel(bind_data.hopchannel[RF_channel]);
@@ -275,7 +294,9 @@ void loop()
   uint32_t time;
 
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
+#ifdef DEBUG
     Serial.println("RX hang");
+#endif
     init_rfm(0);
     to_rx_mode();
   }
