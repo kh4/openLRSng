@@ -76,6 +76,10 @@
 #include "binding.h"
 #include "common.h"
 
+#ifdef TELEMETRY_ENABLED
+#include "telemetry.h"
+#endif
+
 #ifdef COMPILE_TX
 #include "dialog.h"
 #include "TX.h"
