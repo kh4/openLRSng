@@ -272,6 +272,7 @@ void setup(void)
 
 void loop(void)
 {
+//Serial.println("loop");
 
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("module locked?");
@@ -282,16 +283,22 @@ void loop(void)
   }
 
   if (RF_Mode == Received) {
-    uint8_t rx_buf[4];
+    uint8_t rx_buf[11];
     // got telemetry packet
+	//Serial.println("got telemetry packet");
 
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < 4; i++) {
+    for (int16_t i = 0; i < 11; i++) {
       rx_buf[i] = spiReadData();
     }
-    // Serial.println(rx_buf[0]); // print rssi value
+	
+	for (int16_t i = 0; i < 11; i++) {
+		//Serial.print( ">> 0x" );
+		Serial.print( rx_buf[i]);
+	}
+    //Serial.println(rx_buf[0]); // print rssi value
   }
 
   uint32_t time = micros();

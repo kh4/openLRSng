@@ -52,7 +52,7 @@
 #define RX_BOARD_TYPE 3
 
 //###### SERIAL PORT SPEED - just debugging atm. #######
-#define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
+#define SERIAL_BAUD_RATE 9600 //115.200 baud serial port speed
 
 //###### Should receiver always bind on bootup for 0.5s ######
 //###### If disabled a jumpper must be placed on RX ch1-ch2 to allow it to bind

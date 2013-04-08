@@ -323,12 +323,12 @@ void loop()
       fs_saved = 0;
     }
 
-    if (modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED) {
-      // reply with telemetry
-      uint8_t telemetry_packet[4];
-      telemetry_packet[0] = last_rssi_value;
-      tx_packet(telemetry_packet, 4);
-    }
+#ifdef TELEMETRY_ENABLED
+    //if (modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED) {
+		telemetry.queue( last_rssi_value );
+		telemetry.send();
+    //}
+#endif
 
     RF_Mode = Receive;
     rx_reset();
