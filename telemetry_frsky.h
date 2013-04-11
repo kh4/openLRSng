@@ -35,21 +35,21 @@ class tFrsky : public tCore {
 		// nothing here
 	
 	public:
-		void queue( uint8_t byte ) {
+		void queue___( uint8_t byte ) {
 			uint8_t t_size = 11;
 			uint8_t* t_pkt = (uint8_t *) malloc( t_size );
 			
-			t_pkt[0] = 0x7E; // header
-			t_pkt[1] = 0xfe;  // LINKPKT
-			t_pkt[2] = byte; // Analog value for port1
-			t_pkt[3] = byte; // Analog value for port2
-			t_pkt[4] = byte; // Up link quality
-			t_pkt[5] = byte; // Down link quality
-			t_pkt[6] = 0x00; // filler
-			t_pkt[7] = 0x00; // filler
-			t_pkt[8] = 0x00; // filler
-			t_pkt[9] = 0x00; // filler
-			t_pkt[10] = 0x7E; // tail
+			t_pkt[0]  = 0x7e; // header
+			t_pkt[1]  = 0xfe; // Link packet flag
+			t_pkt[2]  = 0;    // Voltage 1 (multiply by 0.0517647058824 for real value)
+			t_pkt[3]  = 0;    // Voltage2 (multiply by 0.0129411764706 for real value)
+			t_pkt[4]  = byte; // Uplink
+			t_pkt[5]  = byte; // Downlink
+			t_pkt[6]  = 0x00; // packet padding
+			t_pkt[7]  = 0x00;
+			t_pkt[8]  = 0x00;
+			t_pkt[9]  = 0x00;
+			t_pkt[10] = 0x7e; // tail
 			
 			this->tx_add( t_pkt, t_size );
 			free( t_pkt ); // cleanup

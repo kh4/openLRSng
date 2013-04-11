@@ -323,12 +323,26 @@ void loop()
       fs_saved = 0;
     }
 
-#ifdef TELEMETRY_ENABLED
-    //if (modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED) {
-		telemetry.queue( last_rssi_value );
-		telemetry.send();
-    //}
+	// Flush the telemetry buffer
+    if (modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED) {
+		if( millis() - telemetrySendTimer > 200 ) {
+#ifdef DEBUG
+			Serial.print( millis() - telemetrySendTimer, DEC );
 #endif
+			telemetrySendTimer = millis();
+			
+			// TELEMETRY TESTING
+			telemetry_rssi rssi;
+			
+			rssi.rx_rssi = last_rssi_value;
+			rssi.tx_rssi = 0;
+			rssi.rx_drop = 0;
+			rssi.tx_drop = 0;
+			
+			telemetry.queue( rssi );
+			telemetry.flush();
+		}
+    }
 
     RF_Mode = Receive;
     rx_reset();

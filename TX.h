@@ -285,7 +285,6 @@ void loop(void)
   if (RF_Mode == Received) {
     uint8_t rx_buf[11];
     // got telemetry packet
-	//Serial.println("got telemetry packet");
 
     lastTelemetry = micros();
     RF_Mode = Receive;
@@ -293,12 +292,40 @@ void loop(void)
     for (int16_t i = 0; i < 11; i++) {
       rx_buf[i] = spiReadData();
     }
-	
-	for (int16_t i = 0; i < 11; i++) {
-		//Serial.print( ">> 0x" );
-		Serial.print( rx_buf[i]);
+#ifdef DEBUG__
+	Serial.print( "<< " );
+	for( int8_t i = 0; i < 11; i++ ) {
+		Serial.print( "0x" );
+		Serial.print( rx_buf[i], HEX );
+		Serial.print( ", " );
+	} Serial.println();
+#endif
+
+	if( rx_buf[1] == TELEMETRY_RSSI ) {
+		uint8_t t_pkt[11];
+		
+		t_pkt[0]  = 0x7e; // header
+		t_pkt[1]  = 0xfe; // Link packet flag
+		t_pkt[2]  = 0;    // Voltage 1 (multiply by 0.0517647058824 for real value)
+		t_pkt[3]  = 0;    // Voltage2 (multiply by 0.0129411764706 for real value)
+		t_pkt[4]  = rx_buf[2]; // Uplink
+		t_pkt[5]  = rx_buf[2]; // Downlink
+		t_pkt[6]  = 0x00; // packet padding
+		t_pkt[7]  = 0x00;
+		t_pkt[8]  = 0x00;
+		t_pkt[9]  = 0x00;
+		t_pkt[10] = 0x7e; // tail
+
+		for( int8_t i = 0; i < 11; i++ ) {
+			if( i == 4 ) {
+				Serial.print( (char) map(t_pkt[i], 0, 255, 0, 100) );
+			} else if( i == 5 ) {
+				Serial.print( (char) map(t_pkt[i], 0, 255, 0, 100) );
+			} else {
+				Serial.print( (char) t_pkt[i] );
+			}
+		} Serial.println();
 	}
-    //Serial.println(rx_buf[0]); // print rssi value
   }
 
   uint32_t time = micros();
@@ -313,7 +340,7 @@ void loop(void)
       if (lastTelemetry) {
         if ((time - lastTelemetry) > modem_params[bind_data.modem_params].interval) {
           // telemetry lost
-          buzzerOn(BZ_FREQ);
+          //buzzerOn(BZ_FREQ); //WARNING buzzer was killing me during development..
           lastTelemetry=0;
         } else {
           // telemetry link re-established

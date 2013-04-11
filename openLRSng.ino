@@ -65,6 +65,11 @@
 //### Module type selection (only for modified HW)
 //#define RFMXX_868
 
+//####### BE MORE VERBOSE ON THE SERIAL LINE #######
+// Currently is used to dump serial packets so beware it will
+// brake any OpenTX integration when used on the TX.
+#define DEBUG
+
 //####################
 //### CODE SECTION ###
 //####################
