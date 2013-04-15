@@ -279,6 +279,10 @@ void loop()
     init_rfm(0);
     to_rx_mode();
   }
+  
+    if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+		telemetry.queue( TELEMETRY_RSSI );
+    }
 
   time = micros();
 
@@ -323,11 +327,9 @@ void loop()
       fs_saved = 0;
     }
 
-    if (modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED) {
-      // reply with telemetry
-      uint8_t telemetry_packet[4];
-      telemetry_packet[0] = last_rssi_value;
-      tx_packet(telemetry_packet, 4);
+	// Flush the telemetry buffer
+    if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+		telemetry.transmit();
     }
 
     RF_Mode = Receive;
@@ -351,6 +353,11 @@ void loop()
     if (RSSI_count > 20) {
       RSSI_sum /= RSSI_count;
       set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
+	  
+		if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+			telemetry.db.rssi.tx( map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255) ); // Update Telemetry TX RSSI value
+		}
+	  
       RSSI_sum = 0;
       RSSI_count = 0;
     }

@@ -11,7 +11,7 @@
 // 2 == 3mW
 // 1 == 1.6mW
 // 0 == 1.3mW
-#define DEFAULT_RF_POWER 7
+#define DEFAULT_RF_POWER 1
 
 #define DEFAULT_CARRIER_FREQUENCY 435000000  // Hz  startup frequency
 #define DEFAULT_CHANNEL_SPACING 5 // 50kHz
@@ -21,7 +21,7 @@
 //  0 -- 4800bps, best range, 20Hz update rate
 //  1 -- 9600bps, medium range, 40Hz update rate
 //  2 -- 19200bps, medium range, 50Hz update rate + telemetry backlink
-#define DEFAULT_DATARATE 1
+#define DEFAULT_DATARATE 2
 
 // helpper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
