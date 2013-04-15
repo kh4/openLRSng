@@ -1,5 +1,12 @@
 /*
  * OpenLRSng FRSKY compatible telemetry protocol
+ *
+ *  -----------------------------------------------------------
+ * | HEADER | LINKPKT | VOLT1 | VOLT2 | TXRSSI | RXRSSI | TAIL |
+ *  -----------------------------------------------------------
+ * | 0x7E   | 0xFE    |       |       |        |        | 0x7E |
+ *  -----------------------------------------------------------
+ *
  *  ----------------------------------------------------------------------
  * | HEADER | DataID1 | DATA1      | HEADER | DataID2 | DATA2      | TAIL |
  *  ----------------------------------------------------------------------
@@ -27,34 +34,41 @@
  *
  */
  
-class tFrsky : public tCore {
+class frsky_class : public telemetry_class {
 	private:
-		// nothing here
+		uint32_t telemetryFrsky1;
 	
 	protected:
-		// nothing here
+		void writeSerial( uint8_t* data, int bytes ) {
+			for( uint8_t i = 0; i < bytes; i++ ) { Serial.print( (char) data[i] ); }
+			Serial.println();
+		}
 	
 	public:
-		void queue___( uint8_t byte ) {
-			uint8_t t_size = 11;
-			uint8_t* t_pkt = (uint8_t *) malloc( t_size );
+		void tick( void ) {
+			if( millis() - this->telemetryFrsky1 > 190 ) {
+				this->telemetryFrsky1 = millis();
+				this->forward();
+			}
+		}
+		
+		void forward( void ) {
+			uint8_t data[11];
+			data[0]  = 0x7e;	// Header
+			data[1]  = 0xfe;	// Link packet flag
+			data[2]  = 0;		// Voltage A1
+			data[3]  = 0;		// Voltage A2
+			data[4]  = map( this->db.rssi.tx(), 0, 255, 0, 100 ); // RX RSSI
+			data[5]  = 0;		// TX RSSI
+			data[6]  = 0x00;	// Packet padding
+			data[7]  = 0x00;	//
+			data[8]  = 0x00;	//
+			data[9]  = 0x00;	//
+			data[10] = 0x7e;	// Tail
 			
-			t_pkt[0]  = 0x7e; // header
-			t_pkt[1]  = 0xfe; // Link packet flag
-			t_pkt[2]  = 0;    // Voltage 1 (multiply by 0.0517647058824 for real value)
-			t_pkt[3]  = 0;    // Voltage2 (multiply by 0.0129411764706 for real value)
-			t_pkt[4]  = byte; // Uplink
-			t_pkt[5]  = byte; // Downlink
-			t_pkt[6]  = 0x00; // packet padding
-			t_pkt[7]  = 0x00;
-			t_pkt[8]  = 0x00;
-			t_pkt[9]  = 0x00;
-			t_pkt[10] = 0x7e; // tail
-			
-			this->tx_add( t_pkt, t_size );
-			free( t_pkt ); // cleanup
+			writeSerial( data, 11 );
 		}
 };
 
 // TELEMETRY
-tFrsky telemetry;
+frsky_class telemetry;

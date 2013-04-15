@@ -272,8 +272,6 @@ void setup(void)
 
 void loop(void)
 {
-//Serial.println("loop");
-
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("module locked?");
     Red_LED_ON;
@@ -281,51 +279,16 @@ void loop(void)
     rx_reset();
     Red_LED_OFF;
   }
-
-  if (RF_Mode == Received) {
-    uint8_t rx_buf[11];
-    // got telemetry packet
-
-    lastTelemetry = micros();
-    RF_Mode = Receive;
-    spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < 11; i++) {
-      rx_buf[i] = spiReadData();
-    }
-#ifdef DEBUG__
-	Serial.print( "<< " );
-	for( int8_t i = 0; i < 11; i++ ) {
-		Serial.print( "0x" );
-		Serial.print( rx_buf[i], HEX );
-		Serial.print( ", " );
-	} Serial.println();
-#endif
-
-	if( rx_buf[1] == TELEMETRY_RSSI ) {
-		uint8_t t_pkt[11];
-		
-		t_pkt[0]  = 0x7e; // header
-		t_pkt[1]  = 0xfe; // Link packet flag
-		t_pkt[2]  = 0;    // Voltage 1 (multiply by 0.0517647058824 for real value)
-		t_pkt[3]  = 0;    // Voltage2 (multiply by 0.0129411764706 for real value)
-		t_pkt[4]  = rx_buf[2]; // Uplink
-		t_pkt[5]  = rx_buf[2]; // Downlink
-		t_pkt[6]  = 0x00; // packet padding
-		t_pkt[7]  = 0x00;
-		t_pkt[8]  = 0x00;
-		t_pkt[9]  = 0x00;
-		t_pkt[10] = 0x7e; // tail
-
-		for( int8_t i = 0; i < 11; i++ ) {
-			if( i == 4 ) {
-				Serial.print( (char) map(t_pkt[i], 0, 255, 0, 100) );
-			} else if( i == 5 ) {
-				Serial.print( (char) map(t_pkt[i], 0, 255, 0, 100) );
-			} else {
-				Serial.print( (char) t_pkt[i] );
-			}
-		} Serial.println();
+  
+	if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+		telemetry.tick();
 	}
+
+  if (RF_Mode == Received) { // Got a telemetry packet
+    RF_Mode = Receive;
+	lastTelemetry = micros();
+    spiSendAddress(0x7f);   // Send the package read command
+	telemetry.receive();
   }
 
   uint32_t time = micros();
