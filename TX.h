@@ -303,7 +303,7 @@ void loop(void)
       if (lastTelemetry) {
         if ((time - lastTelemetry) > modem_params[bind_data.modem_params].interval) {
           // telemetry lost
-          //buzzerOn(BZ_FREQ); //WARNING buzzer was killing me during development..
+          buzzerOn(BZ_FREQ);
           lastTelemetry=0;
         } else {
           // telemetry link re-established
