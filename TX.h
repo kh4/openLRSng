@@ -279,10 +279,6 @@ void loop(void)
     rx_reset();
     Red_LED_OFF;
   }
-  
-	if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
-		telemetry.tick();
-	}
 
   if (RF_Mode == Received) { // Got a telemetry packet
     RF_Mode = Receive;
@@ -304,6 +300,7 @@ void loop(void)
         if ((time - lastTelemetry) > modem_params[bind_data.modem_params].interval) {
           // telemetry lost
           buzzerOn(BZ_FREQ);
+		  delay(1); buzzerOff(); //FIXME Buzzer was killing me during development
           lastTelemetry=0;
         } else {
           // telemetry link re-established
@@ -369,5 +366,10 @@ void loop(void)
   Green_LED_OFF;
 
   checkFS();
+  
+	// It's now time to let the telemetry emulation module do it's thing.
+	if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+		telemetry.tick();
+	}
 }
 

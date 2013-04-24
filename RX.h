@@ -355,7 +355,8 @@ void loop()
       set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
 	  
 		if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
-			telemetry.db.rssi.tx( map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255) ); // Update Telemetry TX RSSI value
+			telemetry.rssi.tx.set( map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255) ); // Update Telemetry TX RSSI value
+			telemetry.rssi.drop.set( lostpack ); // Update Telemetry TX drop packet value
 		}
 	  
       RSSI_sum = 0;

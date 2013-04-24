@@ -41,14 +41,14 @@ class frsky_class : public telemetry_class {
 	protected:
 		void writeSerial( uint8_t* data, int bytes ) {
 			for( uint8_t i = 0; i < bytes; i++ ) { Serial.print( (char) data[i] ); }
-			Serial.println();
+			Serial.println(); // FRSKY expects a carriage return at the end
 		}
 	
 	public:
-		void tick( void ) {
-			if( millis() - this->telemetryFrsky1 > 190 ) {
-				this->telemetryFrsky1 = millis();
-				this->forward();
+		void tick( void ) {                                 // This function is responsable for forwarding the telemetry data
+			if( millis() - this->telemetryFrsky1 > 190 ) {  // back to whatever is listening on the serial line, in this specific
+				this->telemetryFrsky1 = millis();           // module we expect a FRSKY compatible receiver like OpenTX.
+				this->forward();                            // Currently this only serves as an example sending the RSSI packet
 			}
 		}
 		
@@ -58,14 +58,13 @@ class frsky_class : public telemetry_class {
 			data[1]  = 0xfe;	// Link packet flag
 			data[2]  = 0;		// Voltage A1
 			data[3]  = 0;		// Voltage A2
-			data[4]  = map( this->db.rssi.tx(), 0, 255, 0, 100 ); // RX RSSI
+			data[4]  = map( this->rssi.tx.get(), 0, 255, 0, 100 ); // RX RSSI
 			data[5]  = 0;		// TX RSSI
 			data[6]  = 0x00;	// Packet padding
 			data[7]  = 0x00;	//
 			data[8]  = 0x00;	//
 			data[9]  = 0x00;	//
 			data[10] = 0x7e;	// Tail
-			
 			writeSerial( data, 11 );
 		}
 };
