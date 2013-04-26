@@ -15,6 +15,7 @@
 #include "binding.h"
 #include "common.h"
 
+#include "mavlink.h"
 
 FastSerialPort0(Serial);
 
@@ -291,6 +292,8 @@ void setup()
 
 }
 
+static uint8_t mavlinkStatusCounter = 0;
+
 //############ MAIN LOOP ##############
 void loop()
 {
@@ -339,16 +342,12 @@ void loop()
 	// serial bridge
 	const uint8_t len = rx_buf[11];
 	const uint8_t offset = 12;
-	//if (len > 0)
-	//{
-	//	Serial.print("got: ");
-	//	Serial.println(len);
-	//}
-
 	for (int16_t i = 0; i < len && i < sizeof(rx_buf) - offset; i++)
 	{
 		Serial.write(rx_buf[offset + i]);
 	}
+
+	MAVLink_report(); // Update g_mavlinkBuffer, send radio status
 
     if (rx_buf[0] == 0xF5) {
       if (!fs_saved) {
@@ -364,6 +363,7 @@ void loop()
 	  //Serial.println("reply with telemetry");
 	
       uint8_t tx_buf[1 + 11 +TELEMETRY_DATASIZE];
+
 
 	  tx_buf[0] = getSerialData(tx_buf + 1, sizeof(tx_buf) - 1);	  
 	  

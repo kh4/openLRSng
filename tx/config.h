@@ -1,3 +1,6 @@
+#ifndef _Config_Included_
+#define _Config_Included_
+
 // **********************************************************
 // ************************ openLRSng ***********************
 // **********************************************************
@@ -44,9 +47,9 @@
 // 1 = Original Flytron M1 Rx Board as TX (not verified)
 // 2 = Original M2/M3 Tx Board or OrangeRx UHF TX
 // 3 = OpenLRS Rx v2 Board works as TX
-#define TX_BOARD_TYPE 2
+#define TX_BOARD_TYPE 3
 
-#define SWAP_GPIO_PINS 1
+#define SWAP_GPIO_PINS 0
 
 //####### RX BOARD TYPE #######
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
@@ -73,7 +76,7 @@
 // 2 == 3mW
 // 1 == 1.6mW
 // 0 == 1.3mW
-#define DEFAULT_RF_POWER 7
+#define DEFAULT_RF_POWER 0
 
 //######### TRANSMISSION VARIABLES ##########
 #define DEFAULT_CARRIER_FREQUENCY 435000000  // Hz  startup frequency
@@ -124,4 +127,8 @@ static uint8_t default_rf_magic[4] = {'#', 'S', 'l', 'y'};
 #  if ((DEFAULT_BEACON_FREQUENCY < 413000000) || (DEFAULT_BEACON_FREQUENCY>463000000))
 #    error BEACON_FREQUENCY is invalid
 #  endif
+#endif
+
+
+
 #endif

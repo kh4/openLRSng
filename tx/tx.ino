@@ -1,6 +1,13 @@
 /****************************************************
  * OpenLRSng transmitter code
  ****************************************************/
+//extern "C" void __cxa_pure_virtual()
+//{
+//  cli();
+//  for (;;);
+//}
+
+
 #include <FastSerial.h>  // this is now preventing program from running properly!
 #include <BetterStream.h>
 #include <AP_Common.h>
@@ -13,6 +20,7 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
+
 
 FastSerialPort0(Serial);
 

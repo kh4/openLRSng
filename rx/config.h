@@ -1,3 +1,5 @@
+#ifndef _Config_Included_
+#define _Config_Included_
 // **********************************************************
 // ************************ openLRSng ***********************
 // **********************************************************
@@ -121,4 +123,6 @@ static uint8_t default_rf_magic[4] = {'@', 'K', 'H', 'a'};
 #  if ((DEFAULT_BEACON_FREQUENCY < 413000000) || (DEFAULT_BEACON_FREQUENCY>463000000))
 #    error BEACON_FREQUENCY is invalid
 #  endif
+#endif
+
 #endif
