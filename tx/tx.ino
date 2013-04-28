@@ -20,10 +20,12 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
-
+#include "mavlink.h"
 
 FastSerialPort0(Serial);
 
+
+uint8_t RSSI_remote = 0;
 uint8_t RF_channel = 0;
 
 uint8_t FSstate = 0; // 1 = waiting timer, 2 = send FS, 3 sent waiting btn release
@@ -294,6 +296,9 @@ void setup(void)
 
 }
 
+
+static uint8_t radioIDCounter = 0;
+
 void loop(void)
 {
 
@@ -307,16 +312,23 @@ void loop(void)
 
   if (RF_Mode == Received) {
     
-	//Serial.println("got telemetry packet");
-
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
 
 	uint8_t len = spiReadData();
+	RSSI_remote = spiReadData();
     for (int16_t i = 0; i < len; i++)
 	{
 	  Serial.write(spiReadData());
+	}
+
+	radioIDCounter++;
+	if (radioIDCounter > 40)
+	{
+		MAVLink_report(RSSI_remote);
+		radioIDCounter = 0;
+		// Inject Mavlink radio modem status package.
 	}
   }
 

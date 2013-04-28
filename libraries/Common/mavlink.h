@@ -1,36 +1,31 @@
-// -*- Mode: C; c-basic-offset: 8; -*-
-//
-// Copyright (c) 2012 Andrew Tridgell, All Rights Reserved
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//
-//  o Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  o Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in
-//    the documentation and/or other materials provided with the distribution.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-// COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
-// INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-// (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-// HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
-// STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
-// OF THE POSSIBILITY OF SUCH DAMAGE.
-//
+#ifndef _Mavlink_Included_
+#define _Mavlink_Included_
 
-///
-/// @file	mavlink.c
-///
-/// mavlink reporting code
-///
+//#include <stdarg.h>
+
+
+struct mavlink_RADIO_v10 {
+	uint16_t rxerrors;
+	uint16_t fixed;
+	uint8_t rssi;
+	uint8_t remrssi;
+	uint8_t txbuf;
+	uint8_t noise;
+	uint8_t remnoise;
+};
+
+// use '3D' for 3DRadio
+#define RADIO_SOURCE_SYSTEM '3'
+#define RADIO_SOURCE_COMPONENT 'D'
+
+#define MAVLINK_MSG_ID_RADIO 166
+#define MAVLINK_RADIO_CRC_EXTRA 21
+#define MAV_HEADER_SIZE 6
+#define MAV_MAX_PACKET_LENGTH  (MAV_HEADER_SIZE + sizeof(struct mavlink_RADIO_v10) + 2)
+
+
+static uint8_t g_mavlinkBuffer[MAV_MAX_PACKET_LENGTH];
+static uint8_t g_sequenceNumber = 0;
 
 /*
           we use a hand-crafted MAVLink packet based on the following
@@ -48,13 +43,6 @@
 	  </message>
 */
 
-
-#include <stdarg.h>
-#include "mavlink.h"
-
-uint8_t g_mavlinkBuffer[MAV_MAX_PACKET_LENGTH];
-
-static uint8_t g_sequenceNumber;
 
 /*
  * Calculates the MAVLink checksum on a packet in parameter buffer 
@@ -85,8 +73,17 @@ static void mavlink_crc(uint8_t* buf)
 }
 
 
+// return available space in rx buffer as a percentage
+uint8_t	serial_read_space()
+{
+	uint16_t space = SERIAL_RX_BUFFERSIZE - Serial.available();
+	space = (100 * (space / 8)) / (SERIAL_RX_BUFFERSIZE / 8);
+	return space;
+}
+
+
 /// send a MAVLink status report packet
-void MAVLink_report(void)
+void MAVLink_report(uint8_t RSSI_remote)
 {
 	g_mavlinkBuffer[0] = 254;
 	g_mavlinkBuffer[1] = sizeof(struct mavlink_RADIO_v10);
@@ -95,25 +92,36 @@ void MAVLink_report(void)
 	g_mavlinkBuffer[4] = RADIO_SOURCE_COMPONENT;
 	g_mavlinkBuffer[5] = MAVLINK_MSG_ID_RADIO;
 
+
+	// NOTE: 
+	// In mission planner, the Link quality is a percentage of the number
+	// of good packets received
+	// to the number of packets missed (detected by mavlink seq no.)
+	// mission planner does disregard packets with '3D' in header for this calculation
+
 	struct mavlink_RADIO_v10 *m = (struct mavlink_RADIO_v10 *)&g_mavlinkBuffer[MAV_HEADER_SIZE];
 	m->rxerrors = 0; // errors.rx_errors;
 	m->fixed    = 0; //errors.corrected_packets;
-	m->txbuf    = 50; //serial_read_space();
-	m->rssi     = 123; //statistics.average_rssi;
-	m->remrssi  = 64; //remote_statistics.average_rssi;
+	m->txbuf    = serial_read_space(); //serial_read_space();
+	m->rssi     = 0; //statistics.average_rssi;
+	m->remrssi  = RSSI_remote; //remote_statistics.average_rssi;
 	m->noise    = 0; //statistics.average_noise;
 	m->remnoise = 0; //remote_statistics.average_noise;
 
 	mavlink_crc(g_mavlinkBuffer);
 
-	Serial.write(g_mavlinkBuffer, sizeof(g_mavlinkBuffer));
+	if (Serial.txspace() >= sizeof(g_mavlinkBuffer)) 		// don't cause an overflow
+	{
+		Serial.write(g_mavlinkBuffer, sizeof(g_mavlinkBuffer));
+	}
 
 	/*
 	if (serial_write_space() < sizeof(struct mavlink_RADIO_v09)+8) {
-		// don't cause an overflow
 		return;
 	}
 
 	serial_write_buf(g_mavlinkBuffer, sizeof(struct mavlink_RADIO_v09)+8);
 	*/
 }
+
+#endif

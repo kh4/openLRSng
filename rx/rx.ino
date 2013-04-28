@@ -14,7 +14,6 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
-
 #include "mavlink.h"
 
 FastSerialPort0(Serial);
@@ -31,6 +30,7 @@ uint32_t last_beacon;
 
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
+uint8_t	 RSSI_last = 0;
 uint8_t  last_rssi_value = 0;
 
 uint8_t  ppmCountter = 0;
@@ -292,7 +292,7 @@ void setup()
 
 }
 
-static uint8_t mavlinkStatusCounter = 0;
+static uint8_t radioIDCounter = 0;
 
 //############ MAIN LOOP ##############
 void loop()
@@ -347,7 +347,14 @@ void loop()
 		Serial.write(rx_buf[offset + i]);
 	}
 
-	MAVLink_report(); // Update g_mavlinkBuffer, send radio status
+	radioIDCounter++;
+	if (radioIDCounter > 40)
+	{
+		MAVLink_report(0);
+		radioIDCounter = 0;
+		// Inject Mavlink radio modem status package.
+	}
+
 
     if (rx_buf[0] == 0xF5) {
       if (!fs_saved) {
@@ -361,11 +368,14 @@ void loop()
     if (modem_params[bind_data.modem_params].flags & 0x01) {
       // reply with telemetry
 	  //Serial.println("reply with telemetry");
-	
+
+      // TODO: do use struct, and optimize space... size does not need whole byte and
+	  // it would be possible to use the RSSI byte to send various things each frame, differentiate 
+	  // between what through flags in some header...
+      // Also we could optimize the first byte 'failsafe'
       uint8_t tx_buf[1 + 11 +TELEMETRY_DATASIZE];
-
-
-	  tx_buf[0] = getSerialData(tx_buf + 1, sizeof(tx_buf) - 1);	  
+	  tx_buf[0] = getSerialData(tx_buf + 2, sizeof(tx_buf) - 2);	  
+	  tx_buf[1] = RSSI_last; 
 	  
 	  tx_packet(tx_buf, sizeof(tx_buf));
     }
@@ -390,6 +400,7 @@ void loop()
 
     if (RSSI_count > 20) {
       RSSI_sum /= RSSI_count;
+	  RSSI_last = RSSI_sum;
       set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
       RSSI_sum = 0;
       RSSI_count = 0;
