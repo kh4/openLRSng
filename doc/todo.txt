@@ -20,6 +20,7 @@ X Initiate beacon on reset if no signal is detected for a while, Beacon was neve
 ------------------
 serialbridge todo:
 ------------------
+- Do not inject MAVLINKin the middle of the stream, need to know framing.
 
 make structs (rx_transmit_buffer & tx_transmit_buffer)
 create header
