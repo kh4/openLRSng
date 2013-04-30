@@ -21,7 +21,12 @@
 #include "binding.h"
 #include "common.h"
 #include "packet.h"
-#include "mavlink.h"
+
+#if MAVLINK_INJECT == 1
+	#include "mavlink.h"
+	#include "../GCS_MAVLink/include/mavlink/v1.0/mavlink_types.h"
+	#include "../GCS_MAVLink/include/mavlink/v1.0/ardupilotmega/mavlink.h"
+#endif
 
 FastSerialPort0(Serial);
 
@@ -324,17 +329,30 @@ void loop(void)
 	{
 		buf[i] = spiReadData();
 	}
-	Serial.write(recievePacket.data, recievePacket.dataLength);
 	RSSI_remote = recievePacket.miscDataByte;
 
 #if MAVLINK_INJECT == 1
-	radioIDCounter++;
-	if (radioIDCounter > 40)
-	{
-		MAVLink_report(RSSI_remote);
-		radioIDCounter = 0;
-		// Inject Mavlink radio modem status package.
+	mavlink_message_t msg; 
+	mavlink_status_t status;
+
+	for (uint8_t i = 0; i < recievePacket.dataLength; i++)
+	{ 
+		Serial.write(recievePacket.data[i]);
+		//trying to grab msg  
+		if(mavlink_parse_char(MAVLINK_COMM_0, recievePacket.data[i], &msg, &status))
+		{
+			radioIDCounter++;
+			if (radioIDCounter > 40)
+			{
+				MAVLink_report(RSSI_remote);
+				radioIDCounter = 0;
+				// Inject Mavlink radio modem status package.
+			}
+
+		}
 	}
+#else
+	Serial.write(recievePacket.data, recievePacket.dataLength);
 #endif
 
   }
