@@ -14,6 +14,7 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
+#include "packet.h"
 #include "mavlink.h"
 
 FastSerialPort0(Serial);
@@ -347,6 +348,7 @@ void loop()
 		Serial.write(rx_buf[offset + i]);
 	}
 
+#if MAVLINK_INJECT == 1
 	radioIDCounter++;
 	if (radioIDCounter > 40)
 	{
@@ -354,7 +356,7 @@ void loop()
 		radioIDCounter = 0;
 		// Inject Mavlink radio modem status package.
 	}
-
+#endif
 
     if (rx_buf[0] == 0xF5) {
       if (!fs_saved) {
@@ -373,11 +375,11 @@ void loop()
 	  // it would be possible to use the RSSI byte to send various things each frame, differentiate 
 	  // between what through flags in some header...
       // Also we could optimize the first byte 'failsafe'
-      uint8_t tx_buf[1 + 11 +TELEMETRY_DATASIZE];
-	  tx_buf[0] = getSerialData(tx_buf + 2, sizeof(tx_buf) - 2);	  
-	  tx_buf[1] = RSSI_last; 
+      RxToTxPacket packet;
+	  packet.dataLength = getSerialData(packet.data, sizeof(packet.data));	  
+	  packet.miscDataByte = RSSI_last; 
 	  
-	  tx_packet(tx_buf, sizeof(tx_buf));
+	  tx_packet((uint8_t*)&packet, sizeof(packet));
     }
 
     RF_Mode = Receive;

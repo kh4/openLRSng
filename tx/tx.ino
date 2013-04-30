@@ -20,6 +20,7 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
+#include "packet.h"
 #include "mavlink.h"
 
 FastSerialPort0(Serial);
@@ -298,6 +299,8 @@ void setup(void)
 
 
 static uint8_t radioIDCounter = 0;
+static RxToTxPacket recievePacket;
+
 
 void loop(void)
 {
@@ -316,13 +319,15 @@ void loop(void)
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
 
-	uint8_t len = spiReadData();
-	RSSI_remote = spiReadData();
-    for (int16_t i = 0; i < len; i++)
+	uint8_t *buf = (uint8_t *)&recievePacket;
+	for (uint8_t i = 0; i < sizeof(recievePacket); i++)
 	{
-	  Serial.write(spiReadData());
+		buf[i] = spiReadData();
 	}
+	Serial.write(recievePacket.data, recievePacket.dataLength);
+	RSSI_remote = recievePacket.miscDataByte;
 
+#if MAVLINK_INJECT == 1
 	radioIDCounter++;
 	if (radioIDCounter > 40)
 	{
@@ -330,6 +335,8 @@ void loop(void)
 		radioIDCounter = 0;
 		// Inject Mavlink radio modem status package.
 	}
+#endif
+
   }
 
   uint32_t time = micros();
@@ -338,7 +345,7 @@ void loop(void)
     lastSent = time;
 
     if (1) {
-      uint8_t tx_buf[11 + 1 + TELEMETRY_DATASIZE]; // todo: struct.
+      uint8_t tx_buf[sizeof(TxToRxPacket)];
       ppmAge++;
 
       if (lastTelemetry) {
@@ -362,7 +369,9 @@ void loop(void)
 
       }
 
-      cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
+	  TxToRxPacket *packet = (TxToRxPacket *)&tx_buf;
+
+	  cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
       tx_buf[1] = (PPM[0] & 0xff);
       tx_buf[2] = (PPM[1] & 0xff);
       tx_buf[3] = (PPM[2] & 0xff);
@@ -376,8 +385,7 @@ void loop(void)
       sei();
 
 	  // Fill telemetry portion of packet
-	  tx_buf[11] = getSerialData(tx_buf + 12, TELEMETRY_DATASIZE);
-
+	  packet->dataLength = getSerialData(packet->data, sizeof(packet->data));
 
       //Green LED will be on during transmission
       Green_LED_ON ;

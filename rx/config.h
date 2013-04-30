@@ -52,6 +52,9 @@
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
 #define RX_BOARD_TYPE 3
 
+
+#define MAVLINK_INJECT 0
+
 //###### SERIAL PORT SPEED - just debugging atm. #######
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
 #define SERIAL_RX_BUFFERSIZE 512
