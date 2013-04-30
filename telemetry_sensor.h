@@ -10,8 +10,8 @@ class telemetry_sensor {     // Currently there is nothing in common between sen
   
 class telemetry_sensor_rssi: public telemetry_sensor {
 	public:
-		telemetry_type_uint8 tx;    // Each telemetry value holder is based on a class because there are
-		telemetry_type_uint8 drop;  // special functions associated with them, never use a uint8_t directly.
+		telemetry_type<uint8_t> tx;    // Each telemetry value holder is based on a class because there are
+		telemetry_type<uint8_t> drop;  // special functions associated with them, never use a uint8_t directly.
 		
 		bool updated( void ) {                                                  // Will return true if the value changed since the last call to updated()
 			if( this->tx.updated() or this->drop.updated() ) { return true; }   // Checks if either of the value holders were changed and return true if
