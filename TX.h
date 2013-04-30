@@ -272,7 +272,6 @@ void setup(void)
 
 void loop(void)
 {
-
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("module locked?");
     Red_LED_ON;
@@ -281,17 +280,11 @@ void loop(void)
     Red_LED_OFF;
   }
 
-  if (RF_Mode == Received) {
-    uint8_t rx_buf[4];
-    // got telemetry packet
-
-    lastTelemetry = micros();
+  if (RF_Mode == Received) { // Got a telemetry packet
     RF_Mode = Receive;
+	lastTelemetry = micros();
     spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < 4; i++) {
-      rx_buf[i] = spiReadData();
-    }
-    // Serial.println(rx_buf[0]); // print rssi value
+	telemetry.receive();
   }
 
   uint32_t time = micros();
@@ -307,6 +300,7 @@ void loop(void)
         if ((time - lastTelemetry) > modem_params[bind_data.modem_params].interval) {
           // telemetry lost
           buzzerOn(BZ_FREQ);
+		  delay(1); buzzerOff(); //FIXME Buzzer was killing me during development
           lastTelemetry=0;
         } else {
           // telemetry link re-established
@@ -372,5 +366,10 @@ void loop(void)
   Green_LED_OFF;
 
   checkFS();
+  
+	// It's now time to let the telemetry emulation module do it's thing.
+	if( modem_params[bind_data.modem_params].flags & TELEMETRY_ENABLED ) {
+		telemetry.tick();
+	}
 }
 
