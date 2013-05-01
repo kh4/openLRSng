@@ -235,6 +235,7 @@ MAVLINK_HELPER uint8_t mavlink_parse_char(uint8_t chan, uint8_t c, mavlink_messa
 
 	status->msg_received = 0;
 
+
 	switch (status->parse_state)
 	{
 	case MAVLINK_PARSE_STATE_UNINIT:

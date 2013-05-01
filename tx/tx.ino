@@ -16,17 +16,24 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
+#include <GCS_MAVLink.h>
+
+
 #include "config.h"
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
 #include "packet.h"
-
-#if MAVLINK_INJECT == 1
+ 
+//#if MAVLINK_INJECT == 1
 	#include "mavlink.h"
-	#include "../GCS_MAVLink/include/mavlink/v1.0/mavlink_types.h"
-	#include "../GCS_MAVLink/include/mavlink/v1.0/ardupilotmega/mavlink.h"
-#endif
+//#include "../GCS_MAVLink/include/mavlink/v1.0/mavlink_types.h"
+//#include "../GCS_MAVLink/include/mavlink/v1.0/ardupilotmega/mavlink.h"
+
+//static int packet_drops = 0;
+//static int mode = MAV_MODE_UNINIT; /* Defined in mavlink_types.h, which is included by mavlink.h */
+ 
+//#endif
 
 FastSerialPort0(Serial);
 
@@ -41,11 +48,15 @@ uint32_t lastSent = 0;
 
 uint32_t lastTelemetry = 0;
 
+
 volatile uint8_t ppmAge = 0; // age of PPM data
 
 
 volatile uint16_t startPulse = 0;
 volatile uint8_t  ppmCounter = PPM_CHANNELS; // ignore data until first sync pulse
+
+
+
 
 #define TIMER1_FREQUENCY_HZ 50
 #define TIMER1_PRESCALER    8
@@ -267,7 +278,7 @@ void setup(void)
 #endif
 
   Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
-  Serial.set_blocking_writes(false);
+  Serial.set_blocking_writes(true);
 
   if (bindReadEeprom()) {
     Serial.print("Loaded settings from EEPROM\n");
@@ -277,6 +288,14 @@ void setup(void)
     bindWriteEeprom();
     Serial.print("EEPROM data saved\n");
   }
+
+	//mavlink_message_t mavlink_msg; // 272 byte in original size, 112 after including GCS_Mavlink header from arduplane.
+	//mavlink_status_t mavlink_status; // 12 bytes in size.
+	//mavlink_parse_char(MAVLINK_COMM_0, 't', &mavlink_msg, &mavlink_status);
+	//char tmp[24];
+	//sprintf(tmp, "came here: %d\n", sizeof(mavlink_message_t));
+	//Serial.write(tmp);	
+
 
   setupPPMinput();
 
@@ -303,7 +322,7 @@ void setup(void)
 }
 
 
-static uint8_t radioIDCounter = 0;
+static uint16_t radioIDCounter = 0;
 static RxToTxPacket recievePacket;
 
 
@@ -332,25 +351,66 @@ void loop(void)
 	RSSI_remote = recievePacket.miscDataByte;
 
 #if MAVLINK_INJECT == 1
-	mavlink_message_t msg; 
-	mavlink_status_t status;
+	mavlink_message_t mavlink_msg; // 272 byte in original size, 112 after including GCS_Mavlink header from arduplane.
+	mavlink_status_t mavlink_status; // 12 bytes in size.
+	uint8_t sequenceNumber = 1;
 
 	for (uint8_t i = 0; i < recievePacket.dataLength; i++)
 	{ 
 		Serial.write(recievePacket.data[i]);
-		//trying to grab msg  
-		if(mavlink_parse_char(MAVLINK_COMM_0, recievePacket.data[i], &msg, &status))
+
+		if(mavlink_parse_char(MAVLINK_COMM_0, recievePacket.data[i], &mavlink_msg, &mavlink_status))
 		{
-			radioIDCounter++;
-			if (radioIDCounter > 40)
+			sequenceNumber = mavlink_msg.seq;
+			// Inject radio info every X mavlink packets.
+			if ((sequenceNumber % 40) == 0)
 			{
-				MAVLink_report(RSSI_remote);
-				radioIDCounter = 0;
 				// Inject Mavlink radio modem status package.
+				MAVLink_report(RSSI_remote, radioIDCounter);
 			}
+
+			/* // DEBUG
+
+			switch (mavlink_msg.msgid)
+			{
+			  case MAVLINK_MSG_ID_HEARTBEAT:
+				  Serial.write("MAVLINK_MSG_ID_HEARTBEAT");
+				  break;
+			  case MAVLINK_MSG_ID_SYS_STATUS:
+				  Serial.write("MAVLINK_MSG_ID_SYS_STATUS");
+				  break;
+			  case MAVLINK_MSG_ID_GPS_RAW_INT:
+				  Serial.write("MAVLINK_MSG_ID_GPS_RAW_INT");
+				  break;
+			  case MAVLINK_MSG_ID_VFR_HUD:
+				  Serial.write("MAVLINK_MSG_ID_VFR_HUD");
+				  break;
+			  case MAVLINK_MSG_ID_ATTITUDE:
+				  Serial.write("MAVLINK_MSG_ID_ATTITUDE");
+				  break;
+			  case MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT:
+				  Serial.write("MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT");
+				  break;
+			  case MAVLINK_MSG_ID_MISSION_CURRENT:
+				  Serial.write("MAVLINK_MSG_ID_MISSION_CURRENT");
+				  break;
+			  case MAVLINK_MSG_ID_RC_CHANNELS_RAW:
+				  Serial.write("MAVLINK_MSG_ID_RC_CHANNELS_RAW");
+				  break;
+			  case MAVLINK_MSG_ID_WIND:
+				  Serial.write("MAVLINK_MSG_ID_WIND");
+				  break;
+			}
+
+			char tmp[24];
+			sprintf(tmp, " (%d)\n", mavlink_msg.seq);
+			Serial.write(tmp);	
+			*/
 
 		}
 	}
+
+
 #else
 	Serial.write(recievePacket.data, recievePacket.dataLength);
 #endif
