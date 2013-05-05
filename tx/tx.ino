@@ -423,7 +423,7 @@ void loop(void)
     lastSent = time;
 
     if (1) {
-      uint8_t tx_buf[sizeof(TxToRxPacket)];
+
       ppmAge++;
 
       if (lastTelemetry) {
@@ -438,17 +438,18 @@ void loop(void)
       }
 
       // Construct packet to be sent
-      if (FSstate == 2) {
-        tx_buf[0] = 0xF5; // save failsafe
+  	  TxToRxPacket packet;
+      uint8_t* tx_buf = (uint8_t*)&packet;
+	  
+	  if (FSstate == 2) {
+        packet.packetFlags = 0xF5; // save failsafe
         Red_LED_ON
       } else {
-        tx_buf[0] = 0x5E; // servo positions
+        packet.packetFlags = 0x5E; // servo positions
         Red_LED_OFF
-
       }
 
-	  TxToRxPacket *packet = (TxToRxPacket *)&tx_buf;
-
+	  // TODO: use packet struct
 	  cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
       tx_buf[1] = (PPM[0] & 0xff);
       tx_buf[2] = (PPM[1] & 0xff);
@@ -463,14 +464,14 @@ void loop(void)
       sei();
 
 	  // Fill telemetry portion of packet
-	  packet->dataLength = getSerialData(packet->data, sizeof(packet->data));
+	  packet.dataLength = getSerialData(packet.data, sizeof(packet.data));
 
       //Green LED will be on during transmission
       Green_LED_ON ;
 
       // Send the data over RF
       rfmSetChannel(bind_data.hopchannel[RF_channel]);
-      tx_packet(tx_buf, sizeof(tx_buf));
+      tx_packet((uint8_t*)&packet, sizeof(packet));
 
       //Hop to the next frequency
       RF_channel++;

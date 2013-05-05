@@ -352,7 +352,7 @@ void loop()
 	radioIDCounter++;
 	if (radioIDCounter > 40)
 	{
-		MAVLink_report(0);
+		MAVLink_report(0, 0);
 		radioIDCounter = 0;
 		// Inject Mavlink radio modem status package.
 	}
