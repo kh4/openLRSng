@@ -324,20 +324,8 @@ void setup(void)
 static uint16_t radioIDCounter = 0;
 static RxToTxPacket recievePacket;
 
-
-void loop(void)
+void HandleReceivedPacket()
 {
-
-  if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
-    Serial.println("module locked?");
-    Red_LED_ON;
-    init_rfm(0);
-    rx_reset();
-    Red_LED_OFF;
-  }
-
-  if (RF_Mode == Received) {
-    
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
@@ -411,7 +399,21 @@ void loop(void)
 #else
 	Serial.write(recievePacket.data, recievePacket.dataLength);
 #endif
+}
 
+void loop(void)
+{
+
+  if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
+    Serial.println("module locked?");
+    Red_LED_ON;
+    init_rfm(0);
+    rx_reset();
+    Red_LED_OFF;
+  }
+
+  if (RF_Mode == Received) {
+    HandleReceivedPacket();
   }
 
   uint32_t time = micros();
@@ -436,7 +438,6 @@ void loop(void)
 
       // Construct packet to be sent
   	  TxToRxPacket packet;
-      uint8_t* tx_buf = (uint8_t*)&packet;
 	  
 	  if (FSstate == 2) {
         packet.packetFlags = 0xF5; // save failsafe
@@ -446,18 +447,20 @@ void loop(void)
         Red_LED_OFF
       }
 
-	  // TODO: use packet struct
 	  cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
-      tx_buf[1] = (PPM[0] & 0xff);
-      tx_buf[2] = (PPM[1] & 0xff);
-      tx_buf[3] = (PPM[2] & 0xff);
-      tx_buf[4] = (PPM[3] & 0xff);
-      tx_buf[5] = ((PPM[0] >> 8) & 3) | (((PPM[1] >> 8) & 3) << 2) | (((PPM[2] >> 8) & 3) << 4) | (((PPM[3] >> 8) & 3) << 6);
-      tx_buf[6] = (PPM[4] & 0xff);
-      tx_buf[7] = (PPM[5] & 0xff);
-      tx_buf[8] = (PPM[6] & 0xff);
-      tx_buf[9] = (PPM[7] & 0xff);
-      tx_buf[10] = ((PPM[4] >> 8) & 3) | (((PPM[5] >> 8) & 3) << 2) | (((PPM[6] >> 8) & 3) << 4) | (((PPM[7] >> 8) & 3) << 6);
+	  	
+	   //packet.SetPPMValues(PPM)// TODO: implement method in packet class for populating below fields.
+	  
+      packet.ppmLow0to3[0] = (PPM[0] & 0xff);
+      packet.ppmLow0to3[1] = (PPM[1] & 0xff);
+      packet.ppmLow0to3[2] = (PPM[2] & 0xff);
+      packet.ppmLow0to3[3] = (PPM[3] & 0xff);
+      packet.ppmHigh0to3 = ((PPM[0] >> 8) & 3) | (((PPM[1] >> 8) & 3) << 2) | (((PPM[2] >> 8) & 3) << 4) | (((PPM[3] >> 8) & 3) << 6);
+      packet.ppmLow4to7[0] = (PPM[4] & 0xff);
+      packet.ppmLow4to7[1] = (PPM[5] & 0xff);
+      packet.ppmLow4to7[2] = (PPM[6] & 0xff);
+      packet.ppmLow4to7[3] = (PPM[7] & 0xff);
+      packet.ppmHigh4to7 = ((PPM[4] >> 8) & 3) | (((PPM[5] >> 8) & 3) << 2) | (((PPM[6] >> 8) & 3) << 4) | (((PPM[7] >> 8) & 3) << 6);
       sei();
 
 	  // Fill telemetry portion of packet
