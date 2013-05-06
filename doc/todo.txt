@@ -20,16 +20,22 @@ X Initiate beacon on reset if no signal is detected for a while, Beacon was neve
 ------------------
 serialbridge todo:
 ------------------
-- Increase Downlink packet data size and reduce uplink to almost only RC control, and being able to send config / waypoints.
-  Need more downlink than uplink!
-
 > make structs (rx_transmit_buffer & tx_transmit_buffer)
   create header
   move size to header, dont use a whole byte
 
+- Increase Downlink packet data size and reduce uplink to almost only RC control, and being able to send config / waypoints.
+  Need more downlink than uplink!
+
+- Implement timeout for injecting mavlink radio status, to be able to see RSSI fail etc when no incoming packets occur or mavlink messages does not appear...
+
+- Properly use misc data byte to send Rx failures etc. total lost packet counter in mission planner is nice.
+
+- minimize tx packets if comms are down (detect by ack?) to have greater chance of recovery...
+
+
 X Do not inject MAVLINKin the middle of the stream, need to know framing.
 
-- minimize tx packets if cooms are down (detect by ack?) to have greater chance of recovery...
 
 
 -------

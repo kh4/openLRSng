@@ -44,7 +44,7 @@ uint8_t lostpack = 0;
 
 boolean willhop = 0, fs_saved = 0;
 
-volatile uint8_t rx_buf[11 + 1 + TELEMETRY_DATASIZE]; // RX buffer
+volatile TxToRxPacket recievedPacket; // RX buffer
 
 ISR(TIMER1_OVF_vect)
 {
@@ -322,31 +322,29 @@ void loop()
 
     spiSendAddress(0x7f);   // Send the package read command
 
-    for (int16_t i = 0; i < sizeof(rx_buf); i++)
-	{
-      rx_buf[i] = spiReadData();
+	 uint8_t* buf = &recievedPacket;
+    for (int8_t i = 0; i < sizeof(packet); i++)
+	 {
+      buf[i] = spiReadData();
     }
-
-    if ((rx_buf[0] == 0x5E) || (rx_buf[0] == 0xF5)) {
+    
+    if ((recievedPacket.packetFlags == 0x5E) || recievedPacket.packetFlags == 0xF5) { // TODO: use bit flag instead 
       cli();
-      PPM[0] = rx_buf[1] + ((rx_buf[5] & 0x03) << 8);
-      PPM[1] = rx_buf[2] + ((rx_buf[5] & 0x0c) << 6);
-      PPM[2] = rx_buf[3] + ((rx_buf[5] & 0x30) << 4);
-      PPM[3] = rx_buf[4] + ((rx_buf[5] & 0xc0) << 2);
-      PPM[4] = rx_buf[6] + ((rx_buf[10] & 0x03) << 8);
-      PPM[5] = rx_buf[7] + ((rx_buf[10] & 0x0c) << 6);
-      PPM[6] = rx_buf[8] + ((rx_buf[10] & 0x30) << 4);
-      PPM[7] = rx_buf[9] + ((rx_buf[10] & 0xc0) << 2);
+      
+      // TODO: make method in packet class for setting PPM array from packet content.
+      PPM[0] = recievedPacket.ppmLow0to3[0] + ((recievedPacket.ppmHigh0to3 & 0x03) << 8);
+      PPM[1] = recievedPacket.ppmLow0to3[1] + ((recievedPacket.ppmHigh0to3 & 0x0c) << 6);
+      PPM[2] = recievedPacket.ppmLow0to3[2] + ((recievedPacket.ppmHigh0to3 & 0x30) << 4);
+      PPM[3] = recievedPacket.ppmLow0to3[3] + ((recievedPacket.ppmHigh0to3 & 0xc0) << 2);
+      PPM[4] = recievedPacket.ppmLow4to7[0] + ((recievedPacket.ppmHigh4to7 & 0x03) << 8);
+      PPM[5] = recievedPacket.ppmLow4to7[1] + ((recievedPacket.ppmHigh4to7 & 0x0c) << 6);
+      PPM[6] = recievedPacket.ppmLow4to7[2] + ((recievedPacket.ppmHigh4to7 & 0x30) << 4);
+      PPM[7] = recievedPacket.ppmLow4to7[3] + ((recievedPacket.ppmHigh4to7 & 0xc0) << 2);
       sei();
     }
 
 	// serial bridge
-	const uint8_t len = rx_buf[11];
-	const uint8_t offset = 12;
-	for (int16_t i = 0; i < len && i < sizeof(rx_buf) - offset; i++)
-	{
-		Serial.write(rx_buf[offset + i]);
-	}
+	Serial.write(recievedPacket.data, recievedPacket.dataLength);
 
 #if MAVLINK_INJECT == 1
 	radioIDCounter++;
@@ -358,7 +356,7 @@ void loop()
 	}
 #endif
 
-    if (rx_buf[0] == 0xF5) {
+    if (recievedPacket.packetFlags == 0xF5) {
       if (!fs_saved) {
         save_failsafe_values();
         fs_saved = 1;
@@ -375,7 +373,7 @@ void loop()
 	  // it would be possible to use the RSSI byte to send various things each frame, differentiate 
 	  // between what through flags in some header...
       // Also we could optimize the first byte 'failsafe'
-      RxToTxPacket packet;
+     RxToTxPacket packet;
 	  packet.dataLength = getSerialData(packet.data, sizeof(packet.data));	  
 	  packet.miscDataByte = RSSI_last; 
 	  

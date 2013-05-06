@@ -51,6 +51,7 @@ public:
 	// 0x5E = 0b01011110 => servo positions
 	uint8_t packetFlags;
 
+	// TODO: these fields below should be private, and set properly by accessor methods.
 	// ppm ranges from 0-1023 (10 bits per ppm channel).
 	uint8_t ppmLow0to3[4];
 	uint8_t ppmHigh0to3; // 2 msb per ppm channel 0-4 
