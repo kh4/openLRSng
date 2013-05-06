@@ -20,15 +20,16 @@ X Initiate beacon on reset if no signal is detected for a while, Beacon was neve
 ------------------
 serialbridge todo:
 ------------------
-- Do not inject MAVLINKin the middle of the stream, need to know framing.
+- Increase Downlink packet data size and reduce uplink to almost only RC control, and being able to send config / waypoints.
+  Need more downlink than uplink!
 
-make structs (rx_transmit_buffer & tx_transmit_buffer)
-create header
-move size to header, dont use a whole byte
+> make structs (rx_transmit_buffer & tx_transmit_buffer)
+  create header
+  move size to header, dont use a whole byte
 
+X Do not inject MAVLINKin the middle of the stream, need to know framing.
 
-
-minimize tx packets if cooms are down (detect by ack?) to have greater chance of recovery...
+- minimize tx packets if cooms are down (detect by ack?) to have greater chance of recovery...
 
 
 -------

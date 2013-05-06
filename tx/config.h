@@ -47,9 +47,9 @@
 // 1 = Original Flytron M1 Rx Board as TX (not verified)
 // 2 = Original M2/M3 Tx Board or OrangeRx UHF TX
 // 3 = OpenLRS Rx v2 Board works as TX
-#define TX_BOARD_TYPE 3
+#define TX_BOARD_TYPE 2
+#define SWAP_GPIO_PINS 1
 
-#define SWAP_GPIO_PINS 0
 #define MAVLINK_INJECT 1
 
 //####### RX BOARD TYPE #######
@@ -58,8 +58,8 @@
 
 //###### SERIAL PORT SPEED - just debugging atm. #######
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
-#define SERIAL_RX_BUFFERSIZE 128 //512 (does not work with atmega168, to low mem)
-#define SERIAL_TX_BUFFERSIZE 64 //256
+#define SERIAL_RX_BUFFERSIZE 128 //256 (does not work with atmega168, to low mem)
+#define SERIAL_TX_BUFFERSIZE 64 //128
 
 
 //###### Should receiver always bind on bootup for 0.5s ######

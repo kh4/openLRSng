@@ -16,24 +16,23 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-#include <GCS_MAVLink.h>
-
-
 #include "config.h"
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
 #include "packet.h"
- 
-//#if MAVLINK_INJECT == 1
+
+#if MAVLINK_INJECT == 1
+	#include <GCS_MAVLink.h>
 	#include "mavlink.h"
+#endif
+ 
 //#include "../GCS_MAVLink/include/mavlink/v1.0/mavlink_types.h"
 //#include "../GCS_MAVLink/include/mavlink/v1.0/ardupilotmega/mavlink.h"
 
 //static int packet_drops = 0;
 //static int mode = MAV_MODE_UNINIT; /* Defined in mavlink_types.h, which is included by mavlink.h */
  
-//#endif
 
 FastSerialPort0(Serial);
 
@@ -409,8 +408,6 @@ void loop(void)
 
 		}
 	}
-
-
 #else
 	Serial.write(recievePacket.data, recievePacket.dataLength);
 #endif
