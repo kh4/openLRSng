@@ -44,8 +44,6 @@ uint8_t lostpack = 0;
 
 boolean willhop = 0, fs_saved = 0;
 
-volatile TxToRxPacket recievedPacket; // RX buffer
-
 ISR(TIMER1_OVF_vect)
 {
   if (ppmCountter >= PPM_CHANNELS) {
@@ -322,8 +320,9 @@ void loop()
 
     spiSendAddress(0x7f);   // Send the package read command
 
-	 uint8_t* buf = &recievedPacket;
-    for (int8_t i = 0; i < sizeof(packet); i++)
+	TxToRxPacket recievedPacket; // RX buffer
+	uint8_t* buf = (uint8_t*)&recievedPacket;
+    for (int8_t i = 0; i < sizeof(recievedPacket); i++)
 	 {
       buf[i] = spiReadData();
     }

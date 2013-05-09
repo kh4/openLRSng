@@ -20,6 +20,8 @@ X Initiate beacon on reset if no signal is detected for a while, Beacon was neve
 ------------------
 serialbridge todo:
 ------------------
+
+
 > make structs (rx_transmit_buffer & tx_transmit_buffer)
   create header
   move size to header, dont use a whole byte
@@ -32,6 +34,11 @@ serialbridge todo:
 - Properly use misc data byte to send Rx failures etc. total lost packet counter in mission planner is nice.
 
 - minimize tx packets if comms are down (detect by ack?) to have greater chance of recovery...
+
+- Chain TX's somehow. Be able to have one Tx attached to the PC for telemetry connection, and one Tx in the transmitter.
+  Downlink (from Rx to Tx's) would be easy, but some flag in packet would be needed to differentiate between Telemetry commands and Rc PPM.
+  Also trouble with Frequency hopping being in sync.
+  
 
 
 X Do not inject MAVLINKin the middle of the stream, need to know framing.
