@@ -26,12 +26,12 @@ serialbridge todo:
   create header
   move size to header, dont use a whole byte
 
+- Properly use misc data byte to send Rx failures etc. total lost packet counter in mission planner is nice (rxerrors).
+
 - Increase Downlink packet data size and reduce uplink to almost only RC control, and being able to send config / waypoints.
   Need more downlink than uplink!
 
 - Implement timeout for injecting mavlink radio status, to be able to see RSSI fail etc when no incoming packets occur or mavlink messages does not appear...
-
-- Properly use misc data byte to send Rx failures etc. total lost packet counter in mission planner is nice.
 
 - minimize tx packets if comms are down (detect by ack?) to have greater chance of recovery...
 
