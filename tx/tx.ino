@@ -288,6 +288,13 @@ void setup(void)
     Serial.print("EEPROM data saved\n");
   }
 
+#ifdef TX_TIMING
+  Serial.print("Tx->Rx packet size: ");
+  Serial.println(sizeof(TxToRxPacket));
+  Serial.print("Rx->Tx packet size: ");
+  Serial.println(sizeof(RxToTxPacket));
+#endif
+
 	//mavlink_message_t mavlink_msg; // 272 byte in original size, 112 after including GCS_Mavlink header from arduplane.
 	//mavlink_status_t mavlink_status; // 12 bytes in size.
 	//mavlink_parse_char(MAVLINK_COMM_0, 't', &mavlink_msg, &mavlink_status);
@@ -329,13 +336,18 @@ void HandleReceivedPacket()
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
-
 	uint8_t *buf = (uint8_t *)&recievePacket;
 	for (uint8_t i = 0; i < sizeof(recievePacket); i++)
 	{
 		buf[i] = spiReadData();
 	}
 	RSSI_remote = recievePacket.miscDataByte;
+
+	//if (recievePacket.dataLength)
+	//{
+	//	Serial.print("got: ");
+	//	Serial.println(recievePacket.dataLength);
+	//}
 
 #if MAVLINK_INJECT == 1
 	mavlink_message_t mavlink_msg; // 272 byte in original size, 112 after including GCS_Mavlink header from arduplane.

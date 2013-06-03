@@ -94,9 +94,9 @@ static uint8_t default_rf_magic[4] = {'#', 'S', 'l', 'y'};
 // RF Data Rate --- choose wisely between range vs. performance
 //  0 -- 4800bps, best range, 20Hz update rate
 //  1 -- 9600bps, medium range, 40Hz update rate
-//  2 -- 19200bps, medium range, 50Hz update rate + telemetry backlink
-//  3 -- 34800bps
-#define DEFAULT_DATARATE 3
+//  2 -- 19200bps, medium range, 40Hz update rate
+//  3 -- 34800bps, short range, 40Hz update rate
+#define DEFAULT_DATARATE 2
 
 // helpper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
@@ -110,7 +110,7 @@ static uint8_t default_rf_magic[4] = {'#', 'S', 'l', 'y'};
 #define DEFAULT_BEACON_INTERVAL 10 // interval between beacon transmits (s)
 
 //### MISC DEBUG stuff
-//#define TX_TIMING // show time used to send packet (in uS) on serial
+#define TX_TIMING // show time used to send packet (in uS) on serial
 
 //### Forced PPM enablingthis will put RX into combined PPM/PWM mode
 //### having channels 1-7 available in PWM on slots CH1-CH4,CH6-CH8

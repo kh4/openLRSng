@@ -375,7 +375,13 @@ void loop()
      RxToTxPacket packet;
 	  packet.dataLength = getSerialData(packet.data, sizeof(packet.data));	  
 	  packet.miscDataByte = RSSI_last; 
-	  
+/*	  
+	  if (packet.dataLength != 0)
+	  {
+		  Serial.print("send: ");
+		  Serial.println(packet.dataLength);
+	  }
+*/
 	  tx_packet((uint8_t*)&packet, sizeof(packet));
     }
 

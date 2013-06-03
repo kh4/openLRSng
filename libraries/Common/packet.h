@@ -14,7 +14,7 @@ class RxToTxPacket : public PacketBase
 public:
 	enum Constants
 	{
-		MaxRxToTx_DataLength = 28
+		MaxRxToTx_DataLength = 10
 	};
 
 	// Flags
@@ -28,6 +28,11 @@ public:
 		MiscData_Debug,
 		// .... up to 8 different things, with 3 bits (2^3).
 	};
+
+
+	// Idea: for lower baudrates, it makes no sense wasting an entire byte for size & misc.
+	// Use the byte in header to be able to flag when serial is contained within the packet
+	// also content of misc could be flagged in this byte!
 
 	// Content (of 'miscDataByte') could be varied through flags stuffed into dataLength byte.
 	// 5 bits can specify datalength from 0-32, the 3 remaining bits can be used to distinguish
@@ -44,12 +49,12 @@ class TxToRxPacket : public PacketBase
 public:
 	enum Constants
 	{
-		MaxTxToRx_DataLength = 18
+		MaxTxToRx_DataLength = 1
 	};
 
 	// 0xF5 = 0b11110101 => save failsafe
 	// 0x5E = 0b01011110 => servo positions
-	uint8_t packetFlags;
+	uint8_t packetFlags;  // This header byte could contain lot more info, use it more wisely!
 
 	// TODO: these fields below should be private, and set properly by accessor methods.
 	// ppm ranges from 0-1023 (10 bits per ppm channel).

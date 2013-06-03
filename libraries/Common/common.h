@@ -470,6 +470,10 @@ void rx_reset(void)
   ItStatus2 = spiReadRegister(0x04);
 }
 
+#ifdef TX_TIMING
+static uint8_t tx_timing_count = 0;
+#endif
+
 void tx_packet(uint8_t* pkt, uint8_t size)
 {
 
@@ -490,8 +494,12 @@ void tx_packet(uint8_t* pkt, uint8_t size)
   while (nIRQ_1);
 
 #ifdef TX_TIMING
-  Serial.print("TX took:");
-  Serial.println(micros() - tx_start);
+  if (tx_timing_count < 5)
+  {
+	  Serial.print("TX took:");
+	  Serial.println(micros() - tx_start);
+	  tx_timing_count++;
+  }
 #endif
 }
 
