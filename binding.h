@@ -52,7 +52,7 @@
 
 #define EEPROM_OFFSET     0x00
 
-#define TELEMETRY_PACKETSIZE 9
+#define TELEMETRY_PACKETSIZE (7 + RXTX_TELEMETRY_BYTES)
 
 #define BIND_MAGIC (0xDEC1BE15 + BINDING_VERSION)
 static uint8_t default_hop_list[] = {DEFAULT_HOPLIST};

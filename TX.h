@@ -282,16 +282,19 @@ void loop(void)
   }
 
   if (RF_Mode == Received) {
-    uint8_t rx_buf[4];
+    uint8_t rx_buf[2 + RXTX_TELEMETRY_BYTES];
     // got telemetry packet
 
     lastTelemetry = micros();
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
-    for (int16_t i = 0; i < 4; i++) {
+    for (int16_t i = 0; i < 2 + RXTX_TELEMETRY_BYTES; i++) {
       rx_buf[i] = spiReadData();
     }
     // Serial.println(rx_buf[0]); // print rssi value
+    
+    // write the telemety data to the serial port
+    Serial.write(&rx_buf[2], rx_buf[1]);
   }
 
   uint32_t time = micros();

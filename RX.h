@@ -341,9 +341,18 @@ void loop()
 
     if (bind_data.flags & TELEMETRY_ENABLED) {
       // reply with telemetry
-      uint8_t telemetry_packet[4];
+      uint8_t n_bytes_telemetry;
+      uint8_t telemetry_packet[2 + RXTX_TELEMETRY_BYTES];
       telemetry_packet[0] = last_rssi_value;
-      tx_packet(telemetry_packet, 4);
+
+      // handle user telemetry bytes      
+      n_bytes_telemetry = Serial.available();
+      if (n_bytes_telemetry > RXTX_TELEMETRY_BYTES)
+        n_bytes_telemetry = RXTX_TELEMETRY_BYTES;
+      telemetry_packet[1] = n_bytes_telemetry;
+      Serial.readBytes((char*)&telemetry_packet[2], n_bytes_telemetry);
+            
+      tx_packet(telemetry_packet, 2 + RXTX_TELEMETRY_BYTES);
     }
 
     RF_Mode = Receive;
