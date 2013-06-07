@@ -352,7 +352,7 @@ void loop()
       telemetry_packet[1] = n_bytes_telemetry;
       Serial.readBytes((char*)&telemetry_packet[2], n_bytes_telemetry);
             
-      tx_packet(telemetry_packet, 2 + RXTX_TELEMETRY_BYTES);
+      tx_packet(telemetry_packet, 2 + n_bytes_telemetry);
     }
 
     RF_Mode = Receive;
