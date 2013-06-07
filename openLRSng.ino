@@ -65,6 +65,9 @@
 //### minimum sync period generated to PPM (us)
 #define PPM_MINSYNC_US 2700
 
+//### Number of user telemetry bytes to send from Rx to Tx with each packet
+#define RXTX_TELEMETRY_BYTES 4
+
 //### Module type selection (only for modified HW)
 //#define RFMXX_868
 //#define RFMXX_915
