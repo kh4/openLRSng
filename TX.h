@@ -171,7 +171,7 @@ void checkButton(void)
     }
 
     // Check the button again, If it is still down reinitialize
-    if (0 == digitalRead(BTN)) {
+    if ((0 == digitalRead(BTN)) && (millis() > (time + 4800))) {
       int8_t bzstate = HIGH;
       uint8_t doDefaults = 0;
 
