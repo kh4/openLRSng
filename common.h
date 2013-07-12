@@ -48,10 +48,12 @@ uint32_t getInterval(struct bind_data *bd)
   // round up to ms
   ret= ((ret+999) / 1000) * 1000;
 
-  // not faster than 50Hz
+  // enable following to limit packet rate to 50Hz at most
+#ifdef LIMIT_RATE_TO_50HZ
   if (ret < 20000) {
     ret = 20000;
   }
+#endif
 
   return ret;
 }
@@ -166,6 +168,14 @@ void scannerMode(void)
       c = Serial.read();
 
       switch (c) {
+      case 'D':
+        Serial.print('D');
+        Serial.print(MIN_RFM_FREQUENCY);
+        Serial.print(',');
+        Serial.print(MAX_RFM_FREQUENCY);
+        Serial.println(',');
+        break;
+
       case '#':
         nextIndex = 0;
         nextConfig[0] = 0;
@@ -179,10 +189,10 @@ void scannerMode(void)
 
         if (nextIndex == 4) {
           nextIndex = 0;
-          startFreq = nextConfig[0] * 1000000UL; // MHz
-          endFreq   = nextConfig[1] * 1000000UL; // MHz
+          startFreq = nextConfig[0] * 1000UL; // kHz -> Hz
+          endFreq   = nextConfig[1] * 1000UL; // kHz -> Hz
           nrSamples = nextConfig[2]; // count
-          stepSize  = nextConfig[3] * 10000UL;   // 10kHz
+          stepSize  = nextConfig[3] * 1000UL;   // kHz -> Hz
           currentFrequency = startFreq;
           currentSamples = 0;
 
@@ -239,7 +249,7 @@ void scannerMode(void)
 
       currentSamples++;
     } else {
-      Serial.print(currentFrequency / 10000UL);
+      Serial.print(currentFrequency / 1000UL);
       Serial.print(',');
       Serial.print(rssiMax);
       Serial.print(',');
@@ -401,6 +411,11 @@ uint8_t rfmGetRSSI(void)
   return spiReadRegister(0x26);
 }
 
+uint16_t rfmGetAFCC(void)
+{
+  return (((uint16_t)spiReadRegister(0x2B)<<2) | ((uint16_t)spiReadRegister(0x2C)>>6));
+}
+
 void setModemRegs(struct rfm22_modem_regs* r)
 {
 
@@ -524,9 +539,10 @@ void rx_reset(void)
   ItStatus2 = spiReadRegister(0x04);
 }
 
-void tx_packet(uint8_t* pkt, uint8_t size)
-{
+uint32_t tx_start = 0;
 
+void tx_packet_async(uint8_t* pkt, uint8_t size)
+{
   spiWriteRegister(0x3e, size);   // total tx size
 
   for (uint8_t i = 0; i < size; i++) {
@@ -536,17 +552,39 @@ void tx_packet(uint8_t* pkt, uint8_t size)
   spiWriteRegister(0x05, RF22B_PACKET_SENT_INTERRUPT);
   ItStatus1 = spiReadRegister(0x03);      //read the Interrupt Status1 register
   ItStatus2 = spiReadRegister(0x04);
-#ifdef TX_TIMING
-  uint32_t tx_start = micros();
-#endif
+  tx_start = micros();
   spiWriteRegister(0x07, RF22B_PWRSTATE_TX);    // to tx mode
 
-  while (nIRQ_1);
+  RF_Mode = Transmit;
+}
+
+void tx_packet(uint8_t* pkt, uint8_t size)
+{
+  tx_packet_async(pkt, size);
+  while ((RF_Mode == Transmit) && ((micros()-tx_start)<100000));
+  if (RF_Mode == Transmit) {
+    Serial.println("TX timeout!");
+  }
 
 #ifdef TX_TIMING
   Serial.print("TX took:");
   Serial.println(micros() - tx_start);
 #endif
+}
+
+uint8_t tx_done()
+{
+  if (RF_Mode != Transmit) {
+#ifdef TX_TIMING
+    Serial.print("TX took:");
+    Serial.println(micros() - tx_start);
+#endif
+    return 1; // success
+  }
+  if ((micros() - tx_start) > 100000) {
+    return 2; // timeout
+  }
+  return 0;
 }
 
 void beacon_tone(int16_t hz, int16_t len)
@@ -595,7 +633,7 @@ void beacon_send(void)
   spiWriteRegister(0x73, 0x00);
   spiWriteRegister(0x74, 0x00);    // no offset
 
-  rfmSetCarrierFrequency(bind_data.beacon_frequency);
+  rfmSetCarrierFrequency(rx_config.beacon_frequency);
 
   spiWriteRegister(0x6d, 0x07);   // 7 set max power 100mW
 

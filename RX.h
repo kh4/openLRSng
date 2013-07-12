@@ -14,17 +14,37 @@ uint32_t last_beacon;
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
 uint8_t  last_rssi_value = 0;
+uint8_t  smoothRSSI = 0;
+uint16_t last_afcc_value = 0;
 
 uint8_t  ppmCountter = 0;
 uint16_t ppmSync = 40000;
 uint8_t  ppmChannels = 8;
 
-boolean PPM_output = 0; // set if PPM output is desired
+volatile uint8_t disablePWM = 0;
+volatile uint8_t disablePPM = 0;
 
 uint8_t firstpack = 0;
 uint8_t lostpack = 0;
 
 boolean willhop = 0, fs_saved = 0;
+
+pinMask_t chToMask[PPM_CHANNELS];
+pinMask_t clearMask;
+
+void outputUp(uint8_t no)
+{
+  PORTB |= chToMask[no].B;
+  PORTC |= chToMask[no].C;
+  PORTD |= chToMask[no].D;
+}
+
+void outputDownAll()
+{
+  PORTB &= clearMask.B;
+  PORTC &= clearMask.C;
+  PORTD &= clearMask.D;
+}
 
 ISR(TIMER1_OVF_vect)
 {
@@ -34,55 +54,115 @@ ISR(TIMER1_OVF_vect)
     ppmSync = 40000;
 
     while (TCNT1<32);
-
-    if (PPM_output) {   // clear all bits
-      PORTB &= ~PWM_MASK_PORTB(PWM_WITHPPM_MASK);
-      PORTD &= ~PWM_MASK_PORTD(PWM_WITHPPM_MASK);
-    } else {
-      PORTB &= ~PWM_MASK_PORTB(PWM_ALL_MASK);
-      PORTD &= ~PWM_MASK_PORTD(PWM_ALL_MASK);
+    outputDownAll();
+    if (rx_config.pinMapping[PPM_OUTPUT] == PINMAP_PPM) {
+      if (disablePPM) {
+        TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
+      } else {
+        TCCR1A |= ((1 << COM1A1) | (1 << COM1A0));
+      }
     }
   } else {
     uint16_t ppmOut = servoBits2Us(PPM[ppmCountter]) * 2;
     ppmSync -= ppmOut;
-    if (ppmSync < (PPM_MINSYNC_US * 2)) {
-      ppmSync=PPM_MINSYNC_US * 2;
+    if (ppmSync < (rx_config.minsync * 2)) {
+      ppmSync = rx_config.minsync * 2;
     }
     ICR1 = ppmOut;
 
-    while (TCNT1<32);
+    if ((rx_config.flags & PPM_MAX_8CH) && (ppmCountter == 8)) {
+      TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
+    }
 
-    if (PPM_output) {
-      PORTB &= ~PWM_MASK_PORTB(PWM_WITHPPM_MASK);
-      PORTD &= ~PWM_MASK_PORTD(PWM_WITHPPM_MASK);
-      if (ppmCountter < 7) { // only 6 (7 if defined by FORCED_PPM_OUTPUT) channels available in PPM mode
-        // shift channels over the PPM pin
-        uint8_t pin = (ppmCountter >= PPM_CH) ? (ppmCountter + 1) : ppmCountter;
-        PORTB |= PWM_MASK_PORTB(PWM_MASK[pin]);
-        PORTD |= PWM_MASK_PORTD(PWM_MASK[pin]);
-      }
-    } else {
-      PORTB &= ~PWM_MASK_PORTB(PWM_ALL_MASK);
-      PORTD &= ~PWM_MASK_PORTD(PWM_ALL_MASK);
-      if (ppmCountter < 8) {
-        PORTB |= PWM_MASK_PORTB(PWM_MASK[ppmCountter]);
-        PORTD |= PWM_MASK_PORTD(PWM_MASK[ppmCountter]);
-      }
+    while (TCNT1<32);
+    outputDownAll();
+    if (!disablePWM) {
+      outputUp(ppmCountter);
     }
 
     ppmCountter++;
   }
 }
 
-void setupPPMout()
+
+void set_RSSI_output( uint8_t val )
 {
-  if (PPM_output) {
-    digitalWrite(PPM_OUT,HIGH);
+  if (rx_config.RSSIpwm < 16) {
+    cli();
+    PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
+    sei();
   }
-  if (PPM_output) {
+  if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
+    if ((val == 0) || (val == 255)) {
+      TCCR2A &= ~(1<<COM2B1); // disable RSSI PWM output
+      digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], (val == 0) ? LOW : HIGH);
+    } else {
+      OCR2B = val;
+      TCCR2A |= (1<<COM2B1); // enable RSSI PWM output
+    }
+  }
+}
+
+void setupOutputs()
+{
+  uint8_t i;
+
+  for (i = 0; i < OUTPUTS; i++) {
+    chToMask[i].B = 0;
+    chToMask[i].C = 0;
+    chToMask[i].D = 0;
+  }
+  clearMask.B = 0xff;
+  clearMask.C = 0xff;
+  clearMask.D = 0xff;
+  for (i = 0; i < OUTPUTS; i++) {
+    if (rx_config.pinMapping[i] < PPM_CHANNELS) {
+      chToMask[rx_config.pinMapping[i]].B |= OUTPUT_MASKS[i].B;
+      chToMask[rx_config.pinMapping[i]].C |= OUTPUT_MASKS[i].C;
+      chToMask[rx_config.pinMapping[i]].D |= OUTPUT_MASKS[i].D;
+      clearMask.B &= ~OUTPUT_MASKS[i].B;
+      clearMask.C &= ~OUTPUT_MASKS[i].C;
+      clearMask.D &= ~OUTPUT_MASKS[i].D;
+    }
+  }
+
+  for (i = 0; i < OUTPUTS; i++) {
+    switch (rx_config.pinMapping[i]) {
+    case PINMAP_ANALOG:
+      pinMode(OUTPUT_PIN[i], INPUT);
+      break;
+    case PINMAP_TXD:
+    case PINMAP_RXD:
+    case PINMAP_SDA:
+    case PINMAP_SCL:
+      break; //ignore serial/I2C for now
+    default:
+      if (i == RXD_OUTPUT) {
+        UCSR0B &= 0xEF; //disable serial RXD
+      }
+      if (i == TXD_OUTPUT) {
+        UCSR0B &= 0xF7; //disable serial TXD
+      }
+      pinMode(OUTPUT_PIN[i], OUTPUT); //PPM,PWM,RSSI
+      break;
+    }
+  }
+
+  if (rx_config.pinMapping[PPM_OUTPUT] == PINMAP_PPM) {
+    digitalWrite(OUTPUT_PIN[PPM_OUTPUT], HIGH);
     TCCR1A = (1 << WGM11) | (1 << COM1A1) | (1 << COM1A0);
   } else {
     TCCR1A = (1 << WGM11);
+  }
+
+  disablePWM = 0;
+  disablePPM = 0;
+
+  if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
+    pinMode(OUTPUT_PIN[RSSI_OUTPUT], OUTPUT);
+    digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], LOW);
+    TCCR2B = (1<<CS20);
+    TCCR2A = (1<<WGM20);
   }
 
   TCCR1B = (1 << WGM13) | (1 << WGM12) | (1 << CS11);
@@ -90,21 +170,6 @@ void setupPPMout()
   OCR1A = 600;  // 0.3ms pulse
   TIMSK1 |= (1 << TOIE1);
 
-  pinMode(PWM_1, OUTPUT);
-  pinMode(PWM_2, OUTPUT);
-  pinMode(PWM_3, OUTPUT);
-  pinMode(PWM_4, OUTPUT);
-  pinMode(PWM_5, OUTPUT);
-  pinMode(PWM_6, OUTPUT);
-  pinMode(PWM_7, OUTPUT);
-#ifdef FORCED_PPM_OUTPUT
-  pinMode(PWM_8, OUTPUT); // if PPM defined at compile time CH8 outputs channel 7 data
-#else
-  if (!PPM_output) {
-    pinMode(PWM_8, OUTPUT); // leave ch8 as input as it is connected to 7 (which can be used as servo too)
-  }
-#endif
-  pinMode(PPM_OUT, OUTPUT);
 }
 
 #define FAILSAFE_OFFSET 0x80
@@ -148,27 +213,54 @@ void load_failsafe_values(void)
 uint8_t bindReceive(uint32_t timeout)
 {
   uint32_t start = millis();
+  uint8_t  rxb;
   init_rfm(1);
   RF_Mode = Receive;
   to_rx_mode();
   Serial.println("Waiting bind\n");
 
   while ((!timeout) || ((millis() - start) < timeout)) {
-    if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
+    if (RF_Mode == Received) {
       Serial.println("Got pkt\n");
-      RF_Mode = Receive;
       spiSendAddress(0x7f);   // Send the package read command
+      rxb=spiReadData();
+      if (rxb=='b') {
+        for (uint8_t i = 0; i < sizeof(bind_data); i++) {
+          *(((uint8_t*)&bind_data) + i) = spiReadData();
+        }
 
-      for (uint8_t i = 0; i < sizeof(bind_data); i++) {
-        *(((uint8_t*)&bind_data) + i) = spiReadData();
+        if (bind_data.version == BINDING_VERSION) {
+          Serial.println("data good\n");
+          rxb='B';
+          tx_packet(&rxb,1); // ACK that we got bound
+          Green_LED_ON; //signal we got bound on LED:s
+          return 1;
+        }
+      } else if ((rxb=='p') || (rxb=='i')) {
+        uint8_t rxc_buf[sizeof(rx_config)+1];
+        if (rxb=='p') {
+          Serial.println(F("Sending RX config"));
+          rxc_buf[0]='P';
+          timeout=0;
+        } else {
+          Serial.println(F("Reinit RX config"));
+          rxInitDefaults();
+          rxWriteEeprom();
+          rxc_buf[0]='I';
+        }
+        memcpy(rxc_buf+1, &rx_config, sizeof(rx_config));
+        tx_packet(rxc_buf,sizeof(rx_config)+1);
+      } else if (rxb=='u') {
+        for (uint8_t i = 0; i < sizeof(rx_config); i++) {
+          *(((uint8_t*)&rx_config) + i) = spiReadData();
+        }
+        rxWriteEeprom();
+        rxb='U';
+        tx_packet(&rxb,1); // ACK that we updated settings
       }
+      RF_Mode = Receive;
+      rx_reset();
 
-      if (bind_data.version == BINDING_VERSION) {
-        Serial.println("data good\n");
-        return 1;
-      } else {
-        rx_reset();
-      }
     }
   }
   return 0;
@@ -214,6 +306,23 @@ int8_t checkIfConnected(uint8_t pin1, uint8_t pin2)
   return ret;
 }
 
+uint8_t rx_buf[21]; // RX buffer (uplink)
+// First byte of RX buf is
+// MSB..LSB [1bit uplink seqno.] [1bit downlink seqno] [6bits type)
+// type 0x00 normal servo, 0x01 failsafe set
+// type 0x38..0x3f uplinkked serial data
+
+uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
+// First byte is meta
+// MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
+// 0x00 link info [RSSI] [AFCC]*2 etc...
+// type 0x38-0x3f downlink serial data 1-8 bytes
+
+#define SERIAL_BUFSIZE 32
+uint8_t serial_buffer[SERIAL_BUFSIZE];
+uint8_t serial_head;
+uint8_t serial_tail;
+
 void setup()
 {
   //LEDs
@@ -230,20 +339,18 @@ void setup()
   pinMode(0, INPUT);   // Serial Rx
   pinMode(1, OUTPUT);   // Serial Tx
 
-  setup_RSSI_output();
-
   Serial.begin(SERIAL_BAUD_RATE);   //Serial Transmission
-
+  rxReadEeprom();
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 
   sei();
   Red_LED_ON;
 
-  if (checkIfConnected(PWM_3,PWM_4)) { // ch1 - ch2 --> force scannerMode
+  if (checkIfConnected(OUTPUT_PIN[2],OUTPUT_PIN[3])) { // ch1 - ch2 --> force scannerMode
     scannerMode();
   }
 
-  if (checkIfConnected(PWM_1,PWM_2) || (!bindReadEeprom())) {
+  if (checkIfConnected(OUTPUT_PIN[0],OUTPUT_PIN[1]) || (!bindReadEeprom())) {
     Serial.print("EEPROM data not valid or bind jumpper set, forcing bind\n");
 
     if (bindReceive(0)) {
@@ -261,23 +368,16 @@ void setup()
 #endif
   }
 
-  // Check for bind plug on ch8 (PPM enable).
-  if (checkIfConnected(PWM_7,PWM_8)) {
-    PPM_output = 1;
-  } else {
-    PPM_output = 0;
+  ppmChannels = getChannelCount(&bind_data);
+  if (rx_config.RSSIpwm == ppmChannels) {
+    ppmChannels+=1;
   }
 
-#ifdef FORCED_PPM_OUTPUT
-  PPM_output = 1;
-#endif
-
-  ppmChannels = getChannelCount(&bind_data);
-
-  Serial.print("Entering normal mode with PPM=");
-  Serial.print(PPM_output);
-  Serial.print("CHs=");
-  Serial.print(ppmChannels);
+  Serial.print("Entering normal mode with PPM ");
+  Serial.print((rx_config.pinMapping[PPM_OUTPUT] == PINMAP_PPM)?"Enabled":"Disabled");
+  Serial.print(" CHs=");
+  Serial.println(ppmChannels);
+  Serial.println(bind_data.flags,16);
   init_rfm(0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
   rfmSetChannel(bind_data.hopchannel[RF_channel]);
@@ -285,12 +385,26 @@ void setup()
   //################### RX SYNC AT STARTUP #################
   RF_Mode = Receive;
   to_rx_mode();
-
+#ifdef TELEMETRY_BAUD_RATE
+  Serial.begin(TELEMETRY_BAUD_RATE);
+#endif
+  while (Serial.available()) {
+    Serial.read();
+  }
+  serial_head=0;
+  serial_tail=0;
   firstpack = 0;
+  last_pack_time = micros();
 
 }
 
-uint8_t rx_buf[21]; // RX buffer
+void checkSerial()
+{
+  while (Serial.available() && (((serial_tail + 1) % SERIAL_BUFSIZE) != serial_head)) {
+    serial_buffer[serial_tail] = Serial.read();
+    serial_tail = (serial_tail + 1) % SERIAL_BUFSIZE;
+  }
+}
 
 //############ MAIN LOOP ##############
 void loop()
@@ -302,6 +416,8 @@ void loop()
     init_rfm(0);
     to_rx_mode();
   }
+
+  checkSerial();
 
   time = micros();
 
@@ -319,35 +435,82 @@ void loop()
       rx_buf[i] = spiReadData();
     }
 
-    if ((rx_buf[0] == 0x5E) || (rx_buf[0] == 0xF5)) {
+    last_afcc_value = rfmGetAFCC();
+
+    if ((rx_buf[0]&0x3e) == 0x00) {
       cli();
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
+      if (rx_config.RSSIpwm < 16) {
+        PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
+      }
       sei();
+      if (rx_buf[0] & 0x01) {
+        if (!fs_saved) {
+          save_failsafe_values();
+          fs_saved = 1;
+        }
+      } else if (fs_saved) {
+        fs_saved = 0;
+      }
+    } else {
+      // something else than servo data...
+      if ((rx_buf[0] & 0x38) == 0x38) {
+        if ((rx_buf[0] ^ tx_buf[0]) & 0x80) {
+          // We got new data... (not retransmission)
+          uint8_t i;
+          tx_buf[0] ^= 0x80; // signal that we got it
+          for (i=0; i <= (rx_buf[0]&7);) {
+            i++;
+            Serial.write(rx_buf[i]);
+          }
+        }
+      }
     }
 
     if (firstpack == 0) {
       firstpack = 1;
-      setupPPMout();
+      setupOutputs();
     } else {
-      if ((PPM_output) && (bind_data.flags & FAILSAFE_NOPPM)) {
-        TCCR1A |= ((1 << COM1A1) | (1 << COM1A0));
-      }
-    }
-
-    if (rx_buf[0] == 0xF5) {
-      if (!fs_saved) {
-        save_failsafe_values();
-        fs_saved = 1;
-      }
-    } else if (fs_saved) {
-      fs_saved = 0;
+      disablePWM = 0;
+      disablePPM = 0;
     }
 
     if (bind_data.flags & TELEMETRY_ENABLED) {
-      // reply with telemetry
-      uint8_t telemetry_packet[4];
-      telemetry_packet[0] = last_rssi_value;
-      tx_packet(telemetry_packet, 4);
+      if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
+        // resend last message
+      } else {
+        tx_buf[0] &= 0xc0;
+        tx_buf[0] ^= 0x40; // swap sequence as we have new data
+        if (serial_head!=serial_tail) {
+          uint8_t bytes=0;
+          while ((bytes<8) && (serial_head!=serial_tail)) {
+            bytes++;
+            tx_buf[bytes]=serial_buffer[serial_head];
+            serial_head=(serial_head + 1) % SERIAL_BUFSIZE;
+          }
+          tx_buf[0] |= (0x37 + bytes);
+        } else {
+          // tx_buf[0] lowest 6 bits left at 0
+          tx_buf[1] = last_rssi_value;
+          if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
+            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT])>>2;
+          } else {
+            tx_buf[2] = 0;
+          }
+          if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
+            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT])>>2;
+          } else {
+            tx_buf[3] = 0;
+          }
+          tx_buf[4] = (last_afcc_value >> 8);
+          tx_buf[5] = last_afcc_value & 0xff;
+        }
+      }
+      tx_packet_async(tx_buf, 9);
+
+      while(!tx_done()) {
+        checkSerial();
+      }
     }
 
     RF_Mode = Receive;
@@ -370,56 +533,67 @@ void loop()
 
     if (RSSI_count > 20) {
       RSSI_sum /= RSSI_count;
-      set_RSSI_output(map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255));
+      RSSI_sum = map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255);
+      smoothRSSI = (uint8_t)(((uint16_t)smoothRSSI * 6 + (uint16_t)RSSI_sum * 2)/8);
+      set_RSSI_output(smoothRSSI);
       RSSI_sum = 0;
       RSSI_count = 0;
     }
   }
 
-  time = micros();
-
   if (firstpack) {
-    if ((lostpack < 5) && (time - last_pack_time) > (getInterval(&bind_data) + 1000)) {
-      // we packet, hop to next channel
+    if ((lostpack < bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) + 1000))) {
+      // we lost packet, hop to next channel
+      willhop = 1;
+      if (lostpack==0) {
+        fs_time = time;
+        last_beacon = 0;
+      }
       lostpack++;
       last_pack_time += getInterval(&bind_data);
       willhop = 1;
       Red_LED_ON;
-      set_RSSI_output(0);
-    } else if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount)) {
+      if (smoothRSSI>30) {
+        smoothRSSI-=30;
+      } else {
+        smoothRSSI=0;
+      }
+      set_RSSI_output(smoothRSSI);
+    } else if ((lostpack == bind_data.hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount))) {
       // hop slowly to allow resync with TX
+      willhop = 1;
+      smoothRSSI=0;
+      set_RSSI_output(smoothRSSI);
       last_pack_time = time;
+    }
 
-      if (lostpack < 10) {
-        lostpack++;
-        if ((bind_data.flags & FAILSAFE_FAST) && (lostpack > 6)) {
-          lostpack=10; // go to failsafe faster
-        }
-      } else if (lostpack == 10) {
-        lostpack = 11;
-        // Serious trouble, apply failsafe
+    if (lostpack) {
+      if ((fs_time) && ((time - fs_time) > FAILSAFE_TIME(rx_config))) {
         load_failsafe_values();
-        if ((PPM_output) && (bind_data.flags & FAILSAFE_NOPPM)) {
-          TCCR1A &= ~((1 << COM1A1) | (1 << COM1A0));
+        if (rx_config.flags & FAILSAFE_NOPWM) {
+          disablePWM = 1;
         }
-        fs_time = time;
-      } else if (bind_data.beacon_interval && bind_data.beacon_deadtime &&
-                 bind_data.beacon_frequency) {
-        if (lostpack == 11) {   // failsafes set....
-          if ((time - fs_time) > (bind_data.beacon_deadtime * 1000000UL)) {
-            lostpack = 12;
-            last_beacon = time;
-          }
-        } else if (lostpack == 12) {   // beacon mode active
-          if ((time - last_beacon) > (bind_data.beacon_interval * 1000000UL)) {
-            last_beacon = time;
-            beacon_send();
-            init_rfm(0);   // go back to normal RX
-            rx_reset();
-          }
+        if (rx_config.flags & FAILSAFE_NOPPM) {
+          disablePPM = 1;
         }
+        fs_time=0;
+        last_beacon = (time + ((uint32_t)rx_config.beacon_deadtime * 1000000UL)) | 1; //beacon activating...
       }
 
+      if ((rx_config.beacon_frequency) && (last_beacon)) {
+        if (((time - last_beacon) < 0x80000000) && // last beacon is future during deadtime
+            (time - last_beacon) > ((uint32_t)rx_config.beacon_interval * 1000000UL)) {
+          beacon_send();
+          init_rfm(0);   // go back to normal RX
+          rx_reset();
+          last_beacon = micros() | 1; // avoid 0 in time
+        }
+      }
+    }
+  } else {
+    // Waiting for first packet, hop slowly
+    if ((time - last_pack_time) > (getInterval(&bind_data) * bind_data.hopcount)) {
+      last_pack_time = time;
       willhop = 1;
     }
   }
@@ -430,7 +604,6 @@ void loop()
     if (RF_channel >= bind_data.hopcount) {
       RF_channel = 0;
     }
-
     rfmSetChannel(bind_data.hopchannel[RF_channel]);
     willhop = 0;
   }

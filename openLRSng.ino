@@ -37,37 +37,39 @@
 
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
-//#define COMPILE_TX
+#define COMPILE_TX
 
 //####### TX BOARD TYPE #######
 // 0 = Original Flytron M1 Tx Board (not verified)
 // 1 = Original Flytron M1 Rx Board as TX (not verified)
 // 2 = Original M2/M3 Tx Board or OrangeRx UHF TX
 // 3 = OpenLRS Rx v2 Board works as TX
-// 4 = OpenLRSngTX (tbd.)
+// 4 = OpenLRSngTX
+// 5 = OpenLRSngRX-4ch (DTF UHF) as TX
 #define TX_BOARD_TYPE 2
 
 //####### RX BOARD TYPE #######
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
-#define RX_BOARD_TYPE 3
+// 5 = OpenLRSngRX-4ch (DTF UHF)
+#define RX_BOARD_TYPE 5
 
-//###### SERIAL PORT SPEED - just debugging atm. #######
+//###### SERIAL PORT SPEED - during configuration #######
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
+
+//###### TELEMETRY BAUD RATE - serial datarate when link is up ######
+//#define TELEMETRY_BAUD_RATE 9600
 
 //###### Should receiver always bind on bootup for 0.5s ######
 //###### If disabled a jumpper must be placed on RX ch1-ch2 to allow it to bind
 #define RX_ALWAYS_BIND
 
-//### Forced PPM enablingthis will put RX into combined PPM/PWM mode
-//### having channels 1-7 available in PWM on slots CH1-CH4,CH6-CH8
-//#define FORCED_PPM_OUTPUT
-
-//### minimum sync period generated to PPM (us)
-#define PPM_MINSYNC_US 2700
-
 //### Module type selection (only for modified HW)
 //#define RFMXX_868
 //#define RFMXX_915
+
+//###### Enable FRSKY telemetry emulation on TX side
+//# This will force TX side baudrate to 9600 and enables hubdata framing
+#define FRSKY_EMULATION
 
 //####################
 //### CODE SECTION ###
@@ -81,7 +83,11 @@
 #include "common.h"
 
 #ifdef COMPILE_TX
+#include "binary_com.h"
 #include "dialog.h"
+#ifdef FRSKY_EMULATION
+#include "frskytx.h"
+#endif
 #include "TX.h"
 #else // COMPILE_RX
 #include "RX.h"
