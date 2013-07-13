@@ -48,7 +48,7 @@
 // 5 = OpenLRSngRX-4ch (DTF UHF) as TX
 #define TX_BOARD_TYPE 2
 
-//####### RX BOARD TYPE #######
+//####### RX BOARD TYPE #######r
 // 3 = OpenLRS Rx v2 Board or OrangeRx UHF RX
 // 5 = OpenLRSngRX-4ch (DTF UHF)
 #define RX_BOARD_TYPE 5
