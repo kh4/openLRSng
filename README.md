@@ -1,7 +1,10 @@
 openLRSng
 =========
 
-my fork of openLRS code (based on thUndeadMod of openLRS)
+my fork of openLRS code based on kh4/openlrsng (based on thUndeadMod of openLRS)
+
+Nothing really special here, just my working repository, you are better off here:.
+https://github.com/kh4/openLRSng
 
 TRANSMITTER HW:
 ===============
