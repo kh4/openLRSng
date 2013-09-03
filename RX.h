@@ -1,6 +1,7 @@
 /****************************************************
  * OpenLRSng receiver code
  ****************************************************/
+FastSerialPort0(Serial);
 
 uint8_t RF_channel = 0;
 
@@ -354,8 +355,10 @@ void setup()
 
   pinMode(0, INPUT);   // Serial Rx
   pinMode(1, OUTPUT);  // Serial Tx
+  
+  Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
+  Serial.set_blocking_writes(false);
 
-  Serial.begin(SERIAL_BAUD_RATE);   //Serial Transmission
   rxReadEeprom();
 
   setupRfmInterrupt();

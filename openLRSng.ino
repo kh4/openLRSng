@@ -66,9 +66,20 @@
 //#define RFMXX_868
 //#define RFMXX_915
 
+
+//####### MAVLink #######
+#define MAVLINK_INJECT 1
+#define SERIAL_RX_BUFFERSIZE 256
+#define SERIAL_TX_BUFFERSIZE 128
+
 //####################
 //### CODE SECTION ###
 //####################
+
+#include <FastSerial.h>
+#include <BetterStream.h>
+#include <AP_Common.h>
+#include <AP_Math.h>
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -76,6 +87,8 @@
 #include "hardware.h"
 #include "binding.h"
 #include "common.h"
+
+#include <mavlink.h>
 
 #ifdef COMPILE_TX
 #include "binary_com.h"
