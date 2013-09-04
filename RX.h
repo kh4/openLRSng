@@ -333,11 +333,6 @@ uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
 // 0x00 link info [RSSI] [AFCC]*2 etc...
 // type 0x38-0x3f downlink serial data 1-8 bytes
 
-#define SERIAL_BUFSIZE 32
-uint8_t serial_buffer[SERIAL_BUFSIZE];
-uint8_t serial_head;
-uint8_t serial_tail;
-
 uint8_t hopcount;
 
 void setup()
@@ -415,25 +410,9 @@ void setup()
   RF_Mode = Receive;
   to_rx_mode();
 
-  if (bind_data.flags & TELEMETRY_ENABLED) {
-    Serial.begin((bind_data.flags & FRSKY_ENABLED)? 9600 : bind_data.serial_baudrate);
-    while (Serial.available()) {
-      Serial.read();
-    }
-  }
-  serial_head=0;
-  serial_tail=0;
   firstpack = 0;
   last_pack_time = micros();
 
-}
-
-void checkSerial()
-{
-  while (Serial.available() && (((serial_tail + 1) % SERIAL_BUFSIZE) != serial_head)) {
-    serial_buffer[serial_tail] = Serial.read();
-    serial_tail = (serial_tail + 1) % SERIAL_BUFSIZE;
-  }
 }
 
 //############ MAIN LOOP ##############
@@ -446,8 +425,6 @@ void loop()
     init_rfm(0);
     to_rx_mode();
   }
-
-  checkSerial();
 
   time = micros();
 
@@ -511,12 +488,11 @@ void loop()
       } else {
         tx_buf[0] &= 0xc0;
         tx_buf[0] ^= 0x40; // swap sequence as we have new data
-        if (serial_head!=serial_tail) {
+        if (Serial.available()) {
           uint8_t bytes=0;
-          while ((bytes<8) && (serial_head!=serial_tail)) {
+          while ((bytes<8) && Serial.available()) {
             bytes++;
-            tx_buf[bytes]=serial_buffer[serial_head];
-            serial_head=(serial_head + 1) % SERIAL_BUFSIZE;
+            Serial.readBytes((char*)&tx_buf[bytes], 1);
           }
           tx_buf[0] |= (0x37 + bytes);
         } else {
@@ -538,9 +514,6 @@ void loop()
       }
       tx_packet_async(tx_buf, 9);
 
-      while(!tx_done()) {
-        checkSerial();
-      }
     }
 
     RF_Mode = Receive;
