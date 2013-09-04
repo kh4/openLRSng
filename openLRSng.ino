@@ -2,7 +2,7 @@
 // ************************ openLRSng ***********************
 // **********************************************************
 // ** by Kari Hautio - kha @ AeroQuad/RCGroups/IRC(Freenode)
-// ** other commits by cTn-dev, rlboyd, DTFUHF, pwarren 
+// ** other commits by cTn-dev, rlboyd, DTFUHF, pwarren
 //
 // Developer chat at IRC: #openLRS @ freenode
 //
@@ -11,7 +11,7 @@
 // Donations for development tools and utilities (beer) here
 // https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=DSWGKGKPRX5CS
 //
-// Please note that for basic usage there is no need to use this 
+// Please note that for basic usage there is no need to use this
 // code in source form. Instead use configurator program available
 // freely in Google Chrome store.
 // http://goo.gl/iX7dJx
@@ -42,7 +42,7 @@
 
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
-//#define COMPILE_TX
+#define COMPILE_TX
 
 //####### TX BOARD TYPE #######
 // 0 = Flytron OpenLRS M1 Tx Board (not verified)
@@ -52,12 +52,12 @@
 // 4 = OpenLRSngTX / HawkEye UHF TX
 // 5 = OpenLRSngRX-4ch (DTF UHF) as TX
 // 6 = DTF UHF DeluxeTX (Atmega32u4)
-#define TX_BOARD_TYPE 2
+#define TX_BOARD_TYPE 3
 
 //####### RX BOARD TYPE #######
 // 3 = Flytron OpenLRS Rx v2 / OrangeRx UHF RX / HawkEye UHF RX
 // 5 = OpenLRSngRX-4ch (DTF UHF)
-#define RX_BOARD_TYPE 5
+#define RX_BOARD_TYPE 3
 
 //###### SERIAL PORT SPEED - during configuration #######
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed

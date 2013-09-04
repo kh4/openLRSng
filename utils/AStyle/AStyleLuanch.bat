@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set OPTIONS=AStyle.cfg
+set OPTIONS=%1
 
 astyle --options=%OPTIONS% ..\..\*.h
 astyle --options=%OPTIONS% ..\..\*.c
