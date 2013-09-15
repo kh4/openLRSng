@@ -385,7 +385,7 @@ uint8_t rx_buf[21]; // RX buffer (uplink)
 // type 0x00 normal servo, 0x01 failsafe set
 // type 0x38..0x3f uplinkked serial data
 
-uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
+uint8_t tx_buf[TELEMETRY_PACKETSIZE]; // TX buffer (downlink)(type plus 8 x data)
 // First byte is meta
 // MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
 // 0x00 link info [RSSI] [AFCC]*2 etc...
@@ -576,6 +576,7 @@ void loop()
 
         if (bind_data.flags & TELEMETRY_ENABLED)
         {
+#if MAVLINK_INJECT == 0
             if ((tx_buf[0] ^ rx_buf[0]) & 0x40)
             {
                 // resend last message
@@ -618,7 +619,21 @@ void loop()
                     tx_buf[5] = last_afcc_value & 0xff;
                 }
             }
-            tx_packet_async(tx_buf, 9);
+#else
+			if (!((tx_buf[0] ^ rx_buf[0]) & 0x40)) // If not true, resend last message
+			{
+				tx_buf[0] &= 0xc0;
+				tx_buf[0] ^= 0x40; // swap sequence as we have new data
+				uint8_t bytes = 0;
+				while ((bytes < TELEMETRY_PACKETSIZE - 1) && Serial.available())
+				{
+					bytes++;
+					Serial.readBytes((char*)&tx_buf[bytes], 1);
+				}
+				tx_buf[0] |= (0x3F & bytes);
+			}
+#endif
+            tx_packet_async(tx_buf, TELEMETRY_PACKETSIZE);
 
             while(!tx_done())
             {

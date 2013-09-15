@@ -312,10 +312,10 @@ void checkFS(void)
 }
 
 uint8_t tx_buf[21];
-uint8_t rx_buf[9];
+uint8_t rx_buf[TELEMETRY_PACKETSIZE];
 
 
-uint8_t serial_resend[9];
+uint8_t serial_resend[TELEMETRY_PACKETSIZE];
 uint8_t serial_okToSend; // 2 if it is ok to send serial instead of servo
 
 void setup(void)
@@ -428,7 +428,7 @@ void loop(void)
         }
         RF_Mode = Receive;
         spiSendAddress(0x7f);   // Send the package read command
-        for (int16_t i = 0; i < 9; i++)
+        for (int16_t i = 0; i < TELEMETRY_PACKETSIZE; i++)
         {
             rx_buf[i] = spiReadData();
         }
@@ -436,6 +436,8 @@ void loop(void)
         if ((tx_buf[0] ^ rx_buf[0]) & 0x40)
         {
             tx_buf[0] ^= 0x40; // swap sequence to ack
+
+#if MAVLINK_INJECT == 0
             if ((rx_buf[0] & 0x38) == 0x38)
             {
                 uint8_t i;
@@ -459,6 +461,13 @@ void loop(void)
                 RX_ain0 = rx_buf[2];
                 RX_ain1 = rx_buf[3];
             }
+#else
+			// transparent serial data...
+			for (uint8_t i = 1; i < (rx_buf[0] & 0x3F); i++)
+			{
+				Serial.write(rx_buf[i]);
+			}
+#endif
         }
         if (serial_okToSend == 1)
         {
