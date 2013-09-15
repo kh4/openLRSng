@@ -24,6 +24,7 @@
 #define DEFAULT_DATARATE 2
 
 #define DEFAULT_BAUDRATE 115200
+#define DEFAULT_SERIAL_DOWNLINK 8
 
 // FLAGS: 8bits
 #define TELEMETRY_ENABLED 0x08
@@ -62,7 +63,7 @@
 #define EEPROM_FAILSAFE_OFFSET 0x180
 
 
-#define TELEMETRY_PACKETSIZE 9
+//#define TELEMETRY_PACKETSIZE 16
 
 #define BIND_MAGIC (0xDEC1BE15 + BINDING_VERSION)
 static uint8_t default_hop_list[] = {DEFAULT_HOPLIST};
@@ -91,6 +92,7 @@ struct bind_data
 {
     uint8_t version;
     uint32_t serial_baudrate;
+	uint8_t serial_downlink; // 0-63 max byte count for serial downlink
     uint32_t rf_frequency;
     uint32_t rf_magic;
     uint8_t rf_power;
@@ -176,6 +178,7 @@ void bindInitDefaults(void)
 {
     bind_data.version = BINDING_VERSION;
     bind_data.serial_baudrate = DEFAULT_BAUDRATE;
+	bind_data.serial_downlink = DEFAULT_SERIAL_DOWNLINK;
     bind_data.rf_power = DEFAULT_RF_POWER;
     bind_data.rf_frequency = DEFAULT_CARRIER_FREQUENCY;
     bind_data.rf_channel_spacing = DEFAULT_CHANNEL_SPACING;

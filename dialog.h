@@ -203,8 +203,11 @@ void bindPrint(void)
     Serial.print(F("9) FrSky emulation: "));
     Serial.println((bind_data.flags & FRSKY_ENABLED) ? "Enabled" : "Disabled");
 
-    Serial.print(F("0) Serial baudrate:"));
+    Serial.print(F("0) Serial baudrate: "));
     Serial.println(bind_data.serial_baudrate);
+
+	Serial.print(F("A) Telemetry packet size: "));
+	Serial.println(bind_data.serial_downlink);
 
     Serial.print(F("Calculated packet interval: "));
     Serial.print(getInterval(&bind_data));
@@ -336,6 +339,9 @@ void CLI_menu_headers(void)
     case 10:
         Serial.println(F("Set serial baudrate: "));
         break;
+	case 11:
+		Serial.println(F("Set telemetry packet size: "));
+		break;
     }
 
     // Flush input
@@ -935,6 +941,11 @@ void handleCLImenu(char c)
             CLI_menu = 10;
             CLI_menu_headers();
             break;
+		case 'a':
+		case 'A':
+			CLI_menu = 11;
+			CLI_menu_headers();
+			break;
         case 'z':
         case 'Z':
             CLI_RX_config();
@@ -1025,6 +1036,13 @@ void handleCLImenu(char c)
                         valid_input = 1;
                     }
                     break;
+				case 11:
+					if ((value >= 1) && (value <= 63))
+					{
+						bind_data.serial_downlink = value;
+						valid_input = 1;
+					}
+					break;
                 }
                 if (valid_input)
                 {

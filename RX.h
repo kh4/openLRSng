@@ -385,7 +385,7 @@ uint8_t rx_buf[21]; // RX buffer (uplink)
 // type 0x00 normal servo, 0x01 failsafe set
 // type 0x38..0x3f uplinkked serial data
 
-uint8_t tx_buf[TELEMETRY_PACKETSIZE]; // TX buffer (downlink)(type plus 8 x data)
+uint8_t tx_buf[64]; // TX buffer (downlink)(type plus 8 x data)
 // First byte is meta
 // MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
 // 0x00 link info [RSSI] [AFCC]*2 etc...
@@ -625,23 +625,15 @@ void loop()
 				tx_buf[0] &= 0xc0; // set 2 msb high
 				tx_buf[0] ^= 0x40; // swap sequence bit7 as we have new data
 				uint8_t bytes = 0;
-				while ((bytes < TELEMETRY_PACKETSIZE - 1) && Serial.available())
+				while ((bytes < bind_data.serial_downlink - 1) && Serial.available())
 				{
 					bytes++;
 					Serial.readBytes((char*)&tx_buf[bytes], 1);
 				}
-
-				//if (bytes > 0)
-				//{
-				//	char dbg[14];
-				//	sprintf(dbg, "send: %d", bytes);
-				//	Serial.println(dbg);
-				//}
-
 				tx_buf[0] |= (0x3F & bytes);
 			}
 #endif
-            tx_packet_async(tx_buf, TELEMETRY_PACKETSIZE);
+            tx_packet_async(tx_buf, bind_data.serial_downlink);
 
             while(!tx_done())
             {

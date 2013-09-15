@@ -312,10 +312,10 @@ void checkFS(void)
 }
 
 uint8_t tx_buf[21];
-uint8_t rx_buf[TELEMETRY_PACKETSIZE];
+uint8_t rx_buf[64];
 
 
-uint8_t serial_resend[TELEMETRY_PACKETSIZE];
+uint8_t serial_resend[64];
 uint8_t serial_okToSend; // 2 if it is ok to send serial instead of servo
 
 void setup(void)
@@ -427,7 +427,7 @@ void loop(void)
         }
         RF_Mode = Receive;
         spiSendAddress(0x7f);   // Send the package read command
-        for (int16_t i = 0; i < TELEMETRY_PACKETSIZE; i++)
+        for (int16_t i = 0; i < bind_data.serial_downlink; i++)
         {
             rx_buf[i] = spiReadData();
         }
