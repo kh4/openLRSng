@@ -402,7 +402,6 @@ void setup()
     pinMode(1, OUTPUT);  // Serial Tx
 
     Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
-    //Serial.set_blocking_writes(false);
 
     rxReadEeprom();
 
@@ -470,6 +469,14 @@ void setup()
     RF_Mode = Receive;
     to_rx_mode();
 
+    if (bind_data.flags & TELEMETRY_ENABLED)
+    {
+        Serial.begin((bind_data.flags & FRSKY_ENABLED) ? 9600 : bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
+        while (Serial.available())
+        {
+            Serial.read();
+        }
+    }
     firstpack = 0;
     last_pack_time = micros();
 
@@ -605,6 +612,10 @@ void loop()
             }
             tx_packet_async(tx_buf, 9);
 
+            while(!tx_done())
+            {
+				// DO stuff while transmitting.
+            }
         }
 
         RF_Mode = Receive;
