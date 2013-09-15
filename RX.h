@@ -480,7 +480,7 @@ void setup()
     if (bind_data.flags & TELEMETRY_ENABLED)
     {
         Serial.begin((bind_data.flags & FRSKY_ENABLED) ? 9600 : bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
-        while (Serial.available())
+        while (Serial.available()) // Flush rx buffer
         {
             Serial.read();
         }
@@ -622,14 +622,22 @@ void loop()
 #else
 			if (!((tx_buf[0] ^ rx_buf[0]) & 0x40)) // If not true, resend last message
 			{
-				tx_buf[0] &= 0xc0;
-				tx_buf[0] ^= 0x40; // swap sequence as we have new data
+				tx_buf[0] &= 0xc0; // set 2 msb high
+				tx_buf[0] ^= 0x40; // swap sequence bit7 as we have new data
 				uint8_t bytes = 0;
 				while ((bytes < TELEMETRY_PACKETSIZE - 1) && Serial.available())
 				{
 					bytes++;
 					Serial.readBytes((char*)&tx_buf[bytes], 1);
 				}
+
+				//if (bytes > 0)
+				//{
+				//	char dbg[14];
+				//	sprintf(dbg, "send: %d", bytes);
+				//	Serial.println(dbg);
+				//}
+
 				tx_buf[0] |= (0x3F & bytes);
 			}
 #endif

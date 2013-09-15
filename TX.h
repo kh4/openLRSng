@@ -375,11 +375,6 @@ void setup(void)
     digitalWrite(BTN, HIGH);
     Red_LED_ON ;
 
-    while (Serial.available())
-    {
-        Serial.read();
-    }
-
     Serial.println("OpenLRSng starting");
 
     delay(200);
@@ -404,6 +399,10 @@ void setup(void)
         Serial.begin(bind_data.serial_baudrate);
     }
 
+	while (Serial.available()) // Flush serial rx buffer
+	{
+		Serial.read();
+	}
 }
 
 void loop(void)
@@ -463,9 +462,16 @@ void loop(void)
             }
 #else
 			// transparent serial data...
-			for (uint8_t i = 1; i < (rx_buf[0] & 0x3F); i++)
+			const uint8_t serialByteCount = rx_buf[0] & 0x3F;
+			if (serialByteCount > 0)
 			{
-				Serial.write(rx_buf[i]);
+				//char dbg[14];
+				//sprintf(dbg, "got: %d", serialByteCount);
+				//Serial.println(dbg);
+				for (uint8_t i = 1; i <= serialByteCount; i++)
+				{
+					Serial.write(rx_buf[i]);
+				}
 			}
 #endif
         }
