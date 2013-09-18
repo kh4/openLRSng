@@ -91,6 +91,8 @@
 #include "common.h"
 
 #include <mavlink.h>
+#include <mavlinkframedetector.h>
+
 
 #ifdef COMPILE_TX
 #include "binary_com.h"

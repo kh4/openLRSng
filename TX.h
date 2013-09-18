@@ -1,7 +1,14 @@
 /****************************************************
  * OpenLRSng transmitter code
  ****************************************************/
+
 FastSerialPort0(Serial);
+
+#ifdef MAVLINK_INJECT
+uint32_t last_mavlinkInject_time = 0;
+MavlinkFrameDetector frameDetector;
+#endif
+uint16_t rxerrors = 0;
 
 uint8_t RF_channel = 0;
 
@@ -424,8 +431,9 @@ void loop(void)
 
     if (RF_Mode == Received)
     {
+		const uint32_t time = micros();
         // got telemetry packet
-        lastTelemetry = micros();
+        lastTelemetry = time;
         if (!lastTelemetry)
         {
             lastTelemetry = 1; //fixup rare case of zero
@@ -473,9 +481,19 @@ void loop(void)
                 //char dbg[14];
                 //sprintf(dbg, "got: %d", serialByteCount);
                 //Serial.println(dbg);
+
                 for (uint8_t i = 1; i <= serialByteCount; i++)
                 {
-                    Serial.write(rx_buf[i]);
+					// Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
+					// Inject packet right after a completed packet
+					const uint8_t ch = rx_buf[i];
+					Serial.write(ch);
+					if (frameDetector.Parse(ch) && time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL)
+					{
+						// Inject Mavlink radio modem status package.
+						MAVLink_report(RSSI_rx, RSSI_tx, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+						last_mavlinkInject_time = time;
+					}
                 }
             }
 #endif
@@ -512,6 +530,7 @@ void loop(void)
                 {
                     // telemetry lost
                     buzzerOn(BZ_FREQ);
+					rxerrors++;
                     lastTelemetry = 0;
                 }
                 else

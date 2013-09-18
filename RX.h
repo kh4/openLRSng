@@ -1,21 +1,19 @@
 /****************************************************
  * OpenLRSng receiver code
  ****************************************************/
-
 FastSerialPort0(Serial);
+
+#ifdef MAVLINK_INJECT
+uint32_t last_mavlinkInject_time = 0;
+MavlinkFrameDetector frameDetector;
+#endif
+uint16_t rxerrors = 0;
 
 uint8_t RF_channel = 0;
 
 uint32_t time;
 uint32_t last_pack_time = 0;
 uint32_t last_rssi_time = 0;
-
-uint16_t rxerrors = 0;
-
-
-#ifdef MAVLINK_INJECT
-uint32_t last_mavlinkInject_time = 0;
-#endif
 
 uint32_t fs_time; // time when failsafe activated
 
@@ -558,7 +556,18 @@ void loop()
                     for (i = 0; i <= (rx_buf[0] & 7);)
                     {
                         i++;
-                        Serial.write(rx_buf[i]);
+						const uint8_t ch = rx_buf[i];
+						Serial.write(ch);
+#if MAVLINK_INJECT == 1
+						// Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
+						// Inject packet right after a completed packet
+						if (frameDetector.Parse(ch) && time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL)
+						{
+							// Inject Mavlink radio modem status package.
+							MAVLink_report(0, smoothRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+							last_mavlinkInject_time = time;
+						}
+#endif
                     }
                 }
             }
@@ -671,17 +680,6 @@ void loop()
             RSSI_count = 0;
         }
     }
-
-#if MAVLINK_INJECT == 1
-    // TODO: Detect mavlink framing (otherwise we could break an incoming MAVLINK packet from groundstation!.
-    if (time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL)
-    {
-        // Inject Mavlink radio modem status package.
-        MAVLink_report(0, smoothRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
-        last_mavlinkInject_time = time;
-    }
-#endif
-
 
     if (firstpack)
     {
