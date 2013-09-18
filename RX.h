@@ -10,6 +10,9 @@ uint32_t time;
 uint32_t last_pack_time = 0;
 uint32_t last_rssi_time = 0;
 
+uint16_t rxerrors = 0;
+
+
 #ifdef MAVLINK_INJECT
 uint32_t last_mavlinkInject_time = 0;
 #endif
@@ -669,13 +672,12 @@ void loop()
         }
     }
 
-
 #if MAVLINK_INJECT == 1
     // TODO: Detect mavlink framing (otherwise we could break an incoming MAVLINK packet from groundstation!.
     if (time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL)
     {
         // Inject Mavlink radio modem status package.
-        MAVLink_report(0, 0, 0);
+        MAVLink_report(0, smoothRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
         last_mavlinkInject_time = time;
     }
 #endif
@@ -691,6 +693,7 @@ void loop()
             {
                 fs_time = time;
                 last_beacon = 0;
+				rxerrors++;
             }
             lostpack++;
             last_pack_time += getInterval(&bind_data);
