@@ -1,7 +1,31 @@
-openLRSng
-=========
+openLRSng (with extended telemetry support)
+===========================================
+	my fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
+	This version of openLRSng is geared to be used with ArduPilot platform.
+	This software enables you to use your openLRS hardware compatible RC receiver and transmitter as a telemetry module. The 3DR telemetry module becomes redundant.
+	The telemetry link is pretty much the same as the one found in original openLRSng project except for:
+		- Variable (selectable through CLI) downlink telemetry packet size.
+		- Injection of mavlink radio modem status packets (lets ArduPilot adjust packet send rate automatically in order to avoid lost packets due to overload).
+		
+	All features from openLRSng 3.1.2 are still supported, except for:
+		- FRSKY emulation (will not work).
 
-my fork of openLRS code (based on thUndeadMod of openLRS)
+
+USING THE SOFTWARE WITH MISSION PLANNER
+=======================================
+	Configure your TX via CLI (done in the same fashion as with original openLRSng) 
+		- Set telemetry baud rate (Default for ArduPilot is 57600)
+		- Set wanted telemetry packet size. Value of this param will vary depending on you application. Higher values will affect your update frequency and reduce range (only for downlink) but increase the packets possible to transfer per second.
+		- Bind to your Rx as usual.
+		
+	Configure Mission Planner		
+		- TODO
+	
+	Fix bug in ArduPlane software (ArduCopter works)
+		- see 'fix connection with lower bps telemetry, honour slowdown of telemetry': https://github.com/gitsly/ardupilot/commit/cfd2c77dda02ec308da6c0ace5077e38add9a75e
+
+	Connect your groundstation computer to the serial port of the Tx. Use this port when connecting in MissionPlanner (also rememeber to use correct baud rate when connecting).
+
 
 CONFIGURATOR UTILY / BINARY FIRMWARE NOTE:
 ==========================================
