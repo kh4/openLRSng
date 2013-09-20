@@ -1,27 +1,72 @@
 openLRSng (with extended telemetry support)
 ===========================================
-	my fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
-	This version of openLRSng is geared to be used with ArduPilot platform.
+	This is a fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
+	The project is geared towards the ArduPilot platform.
 	This software enables you to use your openLRS hardware compatible RC receiver and transmitter as a telemetry module. The 3DR telemetry module becomes redundant.
 	The telemetry link is pretty much the same as the one found in original openLRSng project except for:
 		- Variable (selectable through CLI) downlink telemetry packet size.
-		- Injection of mavlink radio modem status packets (lets ArduPilot adjust packet send rate automatically in order to avoid lost packets due to overload).
+		- Injection of mavlink radio modem status packets. Lets ArduPilot adjust packet send rate automatically in order to avoid lost packets due to overload.
 		
 	All features from openLRSng 3.1.2 are still supported, except for:
 		- FRSKY emulation (will not work).
+		
+	A note to those wanting to use a joystick to control the mav: It could possible be done, but the focus on this project
+
+Useful links:
+	http://diydrones.com/forum/topics/telemetry-openlrs-and-apm?id=705844%3ATopic%3A711570&page=3#comments
 
 
 USING THE SOFTWARE WITH MISSION PLANNER
 =======================================
-	Configure your TX via CLI (done in the same fashion as with original openLRSng) 
+
+	Connect the telemetry port to the OpenLRS Rx.
+		- The wires that need connection between the ardupilot and the Rx is the following:
+			APM TX -> OpenLRS RX
+			APM RX -> OpenLRS TX
+			APM GND -> OpenLRS GND
+			Do NOT connect the 5V wire to the OpenLRS Rx since this may damage the 3.3V radio module. So you need a total of three wires.
+			
+			
+
+	Compile and upload the code to your Rx and Tx module.
+		- Set correct sketchbook location in arduino IDE: Should point to the folder containing the openLRSng.ino file.
+		- Follow the directions under section 'Upload'.
+
+	Configure your TX via CLI (done in the same fashion as with original openLRSng):
 		- Set telemetry baud rate (Default for ArduPilot is 57600)
-		- Set wanted telemetry packet size. Value of this param will vary depending on you application. Higher values will affect your update frequency and reduce range (only for downlink) but increase the packets possible to transfer per second.
-		- Bind to your Rx as usual.
-		
-	Configure Mission Planner		
-		- TODO
+		- Set RFM module datarate, recommended to be set to 2 (19200), inorder to be able to have decent update frequency (packet interval) and telemetry data size.
+		- Set wanted telemetry packet size:
+		  Value of this param will vary depending on your application.
+		  Higher values will reduce your update frequency. Also since packets sent from Rx (downlink) will be
+		  larger the risk of introducing bit errors within the packets will increase, which can decrease downlink quality and range.
+		  However a high value will increase the number of bytes possible to transfer per second, which can be useful for some applications when you 
+		  want good response on the artificial horizon etc.
+		  There is currently no changes made to the uplink (Tx to Rx) communication, so the quality of the RC control will remain unaffected,
+		  except for packet interval (update frequency).
+		  Note that when update frequency is decreased it will also affect the link speed negatively. So this parameter needs some tweaking in-order to get good performance.
+		  As a guideline you should stay within a value of 6-30 (maximum allowed is 64).
+		  
+	Configure Rx:
+		- Bind to your Rx as usual, and configure wanted parameters.
+		- Note about RSSI: the rssi is currently not sent from the Rx to Tx. This is because ardupilot can send the RSSI information within the mavlink protocol.
+		  To be able to see your Rx RSSI you must connect the receiver RSSI pin to your configured RSSI analog input
+		  on the ardupilot and set this up in mission planner, see: http://plane.ardupilot.com/wiki/arduplane-parameters/#Receiver-RSSI-sensing-pin-(ArduPlane-RSSI_PIN)
 	
-	Fix bug in ArduPlane software (ArduCopter works)
+	Configure Mission Planner		
+		- Set correct baud rate for telemetry port on your APM (do this while connected via USB to your ardupilot). Param: SERIAL3_BAUD 
+		- Configure your data rates:
+		  Under section 'Configure->Planner->Telemetry rates' you can set the rate for each type of telemetry. Note that since the link speed will be adjusted 
+		  automatically you will not loose any information sent from the Rx by setting a rate too high but the rates are important inorder to adjust the portion of each 
+		  telemetry type going through the telemetry link.
+		  The data rate needed for each type will vary depending on your application. So for example if you only need position updates, set all other data rates to 0 and you'll receive 
+		  position updates more frequently, since the telemetry link will only be used to send that type of data.
+		  
+		- Uncheck the checkbox 'Reset apm on USB connect' if you do not want your Tx to reset each time you connect.
+		- Press connect.
+		- Tip: you can click on the 'link status' text close to the connect button to see current link quality and status.
+		
+	
+	Connection bug fix in ArduPlane software (ArduCopter works ok)
 		- see 'fix connection with lower bps telemetry, honour slowdown of telemetry': https://github.com/gitsly/ardupilot/commit/cfd2c77dda02ec308da6c0ace5077e38add9a75e
 
 	Connect your groundstation computer to the serial port of the Tx. Use this port when connecting in MissionPlanner (also rememeber to use correct baud rate when connecting).
