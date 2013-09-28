@@ -70,8 +70,8 @@
 //####### MAVLink #######
 #define MAVLINK_INJECT 1
 #define MAVLINK_INJECT_INTERVAL 500000
-#define SERIAL_RX_BUFFERSIZE 256
-#define SERIAL_TX_BUFFERSIZE 128
+#define SERIAL_RX_BUFFERSIZE 128
+#define SERIAL_TX_BUFFERSIZE 64
 
 //####################
 //### CODE SECTION ###
