@@ -42,7 +42,7 @@
 
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
-#define COMPILE_TX
+//#define COMPILE_TX
 
 //####### TX BOARD TYPE #######
 // 0 = Flytron OpenLRS M1 Tx Board (not verified)
@@ -52,7 +52,7 @@
 // 4 = OpenLRSngTX / HawkEye UHF TX
 // 5 = OpenLRSngRX-4ch (DTF UHF) as TX
 // 6 = DTF UHF DeluxeTX (Atmega32u4)
-#define TX_BOARD_TYPE 3
+#define TX_BOARD_TYPE 4
 
 //####### RX BOARD TYPE #######
 // 3 = Flytron OpenLRS Rx v2 / OrangeRx UHF RX / HawkEye UHF RX
@@ -69,9 +69,16 @@
 
 //####### MAVLink #######
 #define MAVLINK_INJECT 1
-#define MAVLINK_INJECT_INTERVAL 500000
+#define MAVLINK_INJECT_INTERVAL 100000  
+
+#ifdef COMPILE_TX
 #define SERIAL_RX_BUFFERSIZE 128
 #define SERIAL_TX_BUFFERSIZE 64
+#else // COMPILE_RX
+#define SERIAL_RX_BUFFERSIZE 256
+#define SERIAL_TX_BUFFERSIZE 64
+#endif
+
 
 //####################
 //### CODE SECTION ###
