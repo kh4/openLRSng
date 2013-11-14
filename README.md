@@ -1,5 +1,8 @@
 openLRSng (with extended telemetry support)
 ===========================================
+
+  NOTE! The latest merge with openLRSng v3.2.1 is still not tested properly by me.
+
 	This is a fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
 	The project is geared towards the ArduPilot platform.
 	This software enables you to use your openLRS hardware compatible RC receiver and transmitter as a telemetry module. The 3DR telemetry module becomes redundant.
