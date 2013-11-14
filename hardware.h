@@ -339,6 +339,8 @@ const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12 , A4, A5, 0, 
 #define RSSI_OUTPUT 0
 #define ANALOG0_OUTPUT 9
 #define ANALOG1_OUTPUT 10
+#define SDA_OUTPUT 9
+#define SCL_OUTPUT 10
 #define RXD_OUTPUT 11
 #define TXD_OUTPUT 12
 
@@ -558,6 +560,8 @@ const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
 #define RSSI_OUTPUT 2
 #define ANALOG0_OUTPUT 1 // actually input
 #define ANALOG1_OUTPUT 3 // actually input
+#define SDA_OUTPUT 1
+#define SCL_OUTPUT 3
 #define RXD_OUTPUT 4
 #define TXD_OUTPUT 5
 
@@ -727,6 +731,7 @@ ISR(PCINT0_vect)
 #define PINMAP_RXD  0x24
 #define PINMAP_TXD  0x25
 #define PINMAP_ANALOG 0x26
+#define PINMAP_LBEEP  0x27 // packetloss beeper
 
 // RX type information used by TX
 #ifdef COMPILE_TX
@@ -740,6 +745,7 @@ struct rxSpecialPinMap {
   unsigned char type;
 } rxSpecialPins[] = {
   {RX_FLYTRON8CH,  0, PINMAP_RSSI},
+  {RX_FLYTRON8CH,  0, PINMAP_LBEEP},
   {RX_FLYTRON8CH,  5, PINMAP_PPM},
   {RX_FLYTRON8CH,  9, PINMAP_SDA},
   {RX_FLYTRON8CH,  9, PINMAP_ANALOG}, // AIN0
@@ -751,16 +757,18 @@ struct rxSpecialPinMap {
   {RX_OLRSNG4CH,   1, PINMAP_SDA},
   {RX_OLRSNG4CH,   1, PINMAP_ANALOG}, // AIN0
   {RX_OLRSNG4CH,   2, PINMAP_RSSI},
+  {RX_OLRSNG4CH,   2, PINMAP_LBEEP},
   {RX_OLRSNG4CH,   3, PINMAP_SCL},
   {RX_OLRSNG4CH,   3, PINMAP_ANALOG}, // AIN1
   {RX_OLRSNG4CH,   4, PINMAP_RXD},
   {RX_OLRSNG4CH,   5, PINMAP_TXD},
   {RX_DTFUHF10CH,  8, PINMAP_RSSI},
+  {RX_DTFUHF10CH,  8, PINMAP_LBEEP},
   {RX_DTFUHF10CH,  9, PINMAP_PPM},
   {0, 0, 0},
 };
 
-static const char *specialStrs[] = { "PPM", "RSSI", "SDA", "SCL", "RXD", "TXD", "AIN", "xxx"};
+static const char *specialStrs[] = { "PPM", "RSSI", "SDA", "SCL", "RXD", "TXD", "AIN", "LBEEP"};
 
 #define SPECIALSTR(x) (specialStrs[(x)&7]) // note must be changed if not 8 strings
 

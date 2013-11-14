@@ -156,7 +156,7 @@ void setupOutputs()
       if (i == TXD_OUTPUT) {
         UCSR0B &= 0xF7; //disable serial TXD
       }
-      pinMode(OUTPUT_PIN[i], OUTPUT); //PPM,PWM,RSSI
+      pinMode(OUTPUT_PIN[i], OUTPUT); //PPM,PWM,RSSI,LBEEP
       break;
     }
   }
@@ -171,11 +171,18 @@ void setupOutputs()
   disablePWM = 0;
   disablePPM = 0;
 
-  if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
+  if ((rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) ||
+      (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_LBEEP)) {
     pinMode(OUTPUT_PIN[RSSI_OUTPUT], OUTPUT);
     digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], LOW);
-    TCCR2B = (1 << CS20);
-    TCCR2A = (1 << WGM20);
+    if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
+      TCCR2B = (1 << CS20);
+      TCCR2A = (1 << WGM20);
+    } else { // LBEEP
+      TCCR2A = (1 << WGM21); // mode=CTC
+      TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
+      OCR2A = 62; // 1KHz
+    }
   }
 
   TCCR1B = (1 << WGM13) | (1 << WGM12) | (1 << CS11);
@@ -186,6 +193,17 @@ void setupOutputs()
   ppmCountter = 0;
   TIMSK1 |= (1 << TOIE1);
 
+}
+
+void updateLBeep(boolean packetlost)
+{
+  if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_LBEEP) {
+    if (packetlost) {
+      TCCR2A |= (1 << COM2B0); // enable tone
+    } else {
+      TCCR2A &= ~(1 << COM2B0); // disable tone
+    }
+  }
 }
 
 void save_failsafe_values(void)
@@ -382,12 +400,24 @@ void setup()
       Green_LED_ON;
     }
   } else {
-    if (rx_config.flags & ALWAYS_BIND) {
+    if ((rx_config.flags & ALWAYS_BIND) && (!(rx_config.flags & SLAVE_MODE))) {
       if (bindReceive(500)) {
         bindWriteEeprom();
         Serial.println("Saved bind data to EEPROM\n");
         Green_LED_ON;
       }
+    }
+  }
+
+  if ((rx_config.pinMapping[SDA_OUTPUT] == PINMAP_SDA) &&
+      (rx_config.pinMapping[SCL_OUTPUT] == PINMAP_SCL)) {
+    if (rx_config.flags & SLAVE_MODE) {
+      Serial.println("I am slave");
+      fatalBlink(5); // not implemented
+      // not reached
+    } else {
+      Serial.println("Looking for slave, not implemented yet");
+
     }
   }
 
@@ -410,7 +440,6 @@ void setup()
   while ((hopcount < MAXHOPS) && (bind_data.hopchannel[hopcount] != 0)) {
     hopcount++;
   }
-
 
   //################### RX SYNC AT STARTUP #################
   RF_Mode = Receive;
@@ -447,6 +476,8 @@ void loop()
 
     Red_LED_OFF;
     Green_LED_ON;
+
+    updateLBeep(false);
 
     spiSendAddress(0x7f);   // Send the package read command
 
@@ -595,6 +626,7 @@ void loop()
       last_pack_time += getInterval(&bind_data);
       willhop = 1;
       Red_LED_ON;
+      updateLBeep(true);
       if (smoothRSSI > 30) {
         smoothRSSI -= 30;
       } else {
