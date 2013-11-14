@@ -1,8 +1,5 @@
 openLRSng (with extended telemetry support)
 ===========================================
-
-  NOTE! The latest merge with openLRSng v3.2.1 is still not tested properly by me.
-
 	This is a fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
 	The project is geared towards the ArduPilot platform.
 	This software enables you to use your openLRS hardware compatible RC receiver and transmitter as a telemetry module. The 3DR telemetry module becomes redundant.
@@ -10,7 +7,7 @@ openLRSng (with extended telemetry support)
 		- Variable (selectable through CLI) downlink telemetry packet size.
 		- Injection of mavlink radio modem status packets. Lets ArduPilot adjust packet send rate automatically in order to avoid lost packets due to overload.
 		
-	All features from openLRSng 3.1.2 are still supported, except for:
+	All features from openLRSng v3.2.1 are still supported, except for:
 		- FRSKY emulation (will not work).
 		
 	A note to those wanting to use a joystick to control the mav: It could possible be done, but the focus on this project
