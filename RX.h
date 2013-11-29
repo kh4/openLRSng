@@ -110,13 +110,24 @@ ISR(TIMER1_OVF_vect)
     }
 }
 
+void setPPM_RSSI(uint8_t val)
+{
+	cli();
+
+#if REVERSE_PPM_RSSI_SERVO == 1
+	PPM[rx_config.RSSIpwm] = 1024 - uint16_t(smoothRSSI << 2);
+#else
+    PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
+#endif
+
+	sei();
+}
+
 void set_RSSI_output( uint8_t val )
 {
     if (rx_config.RSSIpwm < 16)
     {
-        cli();
-        PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
-        sei();
+		setPPM_RSSI(val);
     }
     if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI)
     {
@@ -569,7 +580,7 @@ void loop()
             unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
             if (rx_config.RSSIpwm < 16)
             {
-                PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
+				setPPM_RSSI(smoothRSSI);
             }
             sei();
             if (rx_buf[0] & 0x01)
