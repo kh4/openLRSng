@@ -42,7 +42,7 @@
 
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
-#define COMPILE_TX
+#define COMPILE_RX
 
 //####### TX BOARD TYPE #######
 // 0 = Flytron OpenLRS M1 Tx Board (not verified)
@@ -58,6 +58,7 @@
 // 3 = Flytron OpenLRS Rx v2 / OrangeRx UHF RX / HawkEye UHF RX
 // 5 = OpenLRSngRX-4ch (DTF UHF)
 #define RX_BOARD_TYPE 3
+#define REVERSE_PPM_RSSI_SERVO 1
 
 //###### SERIAL PORT SPEED - during configuration #######
 #define SERIAL_BAUD_RATE 115200 //115.200 baud serial port speed
