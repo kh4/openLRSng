@@ -19,7 +19,7 @@ uint16_t lastAFCCvalue = 0;
 
 uint16_t linkQuality = 0;
 
-uint8_t  ppmCountter = 0;
+uint8_t  ppmCounter = 0;
 uint16_t ppmSync = 40000;
 uint8_t  ppmChannels = 8;
 
@@ -56,14 +56,33 @@ volatile uint16_t nextICR1;
 
 ISR(TIMER1_OVF_vect)
 {
-  if (ppmCountter < ppmChannels) {
+  if (ppmCounter < ppmChannels) {
     ICR1 = nextICR1;
-    nextICR1 = servoBits2Us(PPM[ppmCountter]) * 2;
+    
+    if (PPMLIVE[ppmCounter] < PPM[ppmCounter]) 
+    {      
+      PPMError =  uint16_t ((PPM[ppmCounter] - PPMLIVE[ppmCounter]));
+      if (PPMError > 10) //Deadband
+      {
+        PPMLIVE[ppmCounter] += PPMError / 2;
+      }
+    }
+    else
+      if (PPMLIVE[ppmCounter] > PPM[ppmCounter]) 
+      {
+        PPMError =  uint16_t ((PPMLIVE[ppmCounter] - PPM[ppmCounter]) /2); 
+        if (PPMError > 10) //Deadband
+        {
+          PPMLIVE[ppmCounter] -= PPMError / 2;
+        }
+      }
+    nextICR1 = servoBits2Us(PPMLIVE[ppmCounter]) * 2;
+    
     ppmSync -= nextICR1;
     if (ppmSync < (rx_config.minsync * 2)) {
       ppmSync = rx_config.minsync * 2;
     }
-    if ((disablePPM) || ((rx_config.flags & PPM_MAX_8CH) && (ppmCountter >= 8))) {
+    if ((disablePPM) || ((rx_config.flags & PPM_MAX_8CH) && (ppmCounter >= 8))) {
       OCR1A = 65535; //do not generate a pulse
     } else {
       OCR1A = nextICR1 - 600;
@@ -71,11 +90,11 @@ ISR(TIMER1_OVF_vect)
 
     while (TCNT1 < 32);
     outputDownAll();
-    if ((!disablePWM) && (ppmCountter > 0)) {
-      outputUp(ppmCountter - 1);
+    if ((!disablePWM) && (ppmCounter > 0)) {
+      outputUp(ppmCounter - 1);
     }
 
-    ppmCountter++;
+    ppmCounter++;
   } else {
     ICR1 = nextICR1;
     nextICR1 = ppmSync;
@@ -92,7 +111,7 @@ ISR(TIMER1_OVF_vect)
       outputUp(ppmChannels - 1);
     }
 
-    ppmCountter = 0 ;
+    ppmCounter = 0 ;
   }
 }
 
@@ -268,7 +287,7 @@ void setupOutputs()
   ICR1 = 2000; // just initial value, will be constantly updated
   ppmSync = 40000;
   nextICR1 = 40000;
-  ppmCountter = 0;
+  ppmCounter = 0;
   TIMSK1 |= (1 << TOIE1);
 
   if ((rx_config.flags & IMMEDIATE_OUTPUT) && failsafeIsValid) {
