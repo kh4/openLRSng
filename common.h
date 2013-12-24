@@ -10,6 +10,8 @@ void to_rx_mode(void);
 
 #define PPM_CHANNELS 16
 volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 , 512, 512, 512, 512, 512, 512, 512, 512 };
+volatile uint16_t PPMLIVE[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 ,512,512,512,512,512,512,512,512};
+volatile uint16_t PPMError = 0;
 
 const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
 
