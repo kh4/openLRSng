@@ -20,7 +20,7 @@ void RFM22B_Int()
 }
 
 typedef struct pinMask {
-  uint8_t B,C,D;
+  uint8_t B, C, D;
 } pinMask_t;
 
 
@@ -49,7 +49,7 @@ struct rxSpecialPinMap {
 
 #ifdef COMPILE_TX
 // Needed by dialog code
-static const char *specialStrs[] = { "PPM","RSSI","SDA","SCL","RXD","TXD","AIN","LBEEP"};
+static const char* specialStrs[] = { "PPM", "RSSI", "SDA", "SCL", "RXD", "TXD", "AIN", "LBEEP"};
 #define SPECIALSTR(x) (specialStrs[(x)&7]) // note must be changed if not 8 strings
 #endif
 
@@ -91,9 +91,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER_ACT,HIGH);
+    digitalWrite(BUZZER_ACT, HIGH);
   } else {
-    digitalWrite(BUZZER_ACT,LOW);
+    digitalWrite(BUZZER_ACT, LOW);
   }
 }
 
@@ -175,9 +175,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER_ACT,HIGH);
+    digitalWrite(BUZZER_ACT, HIGH);
   } else {
-    digitalWrite(BUZZER_ACT,LOW);
+    digitalWrite(BUZZER_ACT, LOW);
   }
 }
 
@@ -259,9 +259,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER_ACT,HIGH);
+    digitalWrite(BUZZER_ACT, HIGH);
   } else {
-    digitalWrite(BUZZER_ACT,LOW);
+    digitalWrite(BUZZER_ACT, LOW);
   }
 }
 
@@ -326,8 +326,8 @@ void buzzerInit()
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
-  TCCR2A = (1<<WGM21); // mode=CTC
-  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
+  TCCR2A = (1 << WGM21); // mode=CTC
+  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -335,19 +335,22 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER_ACT,HIGH);
+    digitalWrite(BUZZER_ACT, HIGH);
     uint32_t ocr = 125000L / freq;
-    if (ocr>255) {
-      ocr=255;
+
+    if (ocr > 255) {
+      ocr = 255;
     }
+
     if (!ocr) {
-      ocr=1;
+      ocr = 1;
     }
+
     OCR2A = ocr;
-    TCCR2A |= (1<<COM2B0); // enable output on buzzer2
+    TCCR2A |= (1 << COM2B0); // enable output on buzzer2
   } else {
-    digitalWrite(BUZZER_ACT,LOW);
-    TCCR2A &= ~(1<<COM2B0); // disable output buzzer2
+    digitalWrite(BUZZER_ACT, LOW);
+    TCCR2A &= ~(1 << COM2B0); // disable output buzzer2
   }
 }
 
@@ -359,11 +362,11 @@ void buzzerOn(uint16_t freq)
 #define OUTPUTS 13 // outputs available
 
 const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
-  {0x00,0x00,0x08},{0x00,0x00,0x20},{0x00,0x00,0x40}, // RSSI, CH1, CH2
-  {0x00,0x00,0x80},{0x01,0x00,0x00},{0x02,0x00,0x00}, // CH2, CH3, CH4
-  {0x04,0x00,0x00},{0x08,0x00,0x00},{0x10,0x00,0x00}, // CH5, CH6, CH7
-  {0x00,0x10,0x00},{0x00,0x20,0x00},{0x00,0x00,0x01}, // SDA, SCL, RXD
-  {0x00,0x00,0x02},                                   // TXD
+  {0x00, 0x00, 0x08}, {0x00, 0x00, 0x20}, {0x00, 0x00, 0x40}, // RSSI, CH1, CH2
+  {0x00, 0x00, 0x80}, {0x01, 0x00, 0x00}, {0x02, 0x00, 0x00}, // CH2, CH3, CH4
+  {0x04, 0x00, 0x00}, {0x08, 0x00, 0x00}, {0x10, 0x00, 0x00}, // CH5, CH6, CH7
+  {0x00, 0x10, 0x00}, {0x00, 0x20, 0x00}, {0x00, 0x00, 0x01}, // SDA, SCL, RXD
+  {0x00, 0x00, 0x02},                                 // TXD
 };
 
 const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12 , A4, A5, 0, 1};
@@ -470,8 +473,8 @@ void setupRfmInterrupt()
 
 void buzzerInit()
 {
-  TCCR2A = (1<<WGM21); // mode=CTC
-  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
+  TCCR2A = (1 << WGM21); // mode=CTC
+  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -480,16 +483,19 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    if (ocr>255) {
-      ocr=255;
+
+    if (ocr > 255) {
+      ocr = 255;
     }
+
     if (!ocr) {
-      ocr=1;
+      ocr = 1;
     }
+
     OCR2A = ocr;
-    TCCR2A |= (1<<COM2B0); // enable output
+    TCCR2A |= (1 << COM2B0); // enable output
   } else {
-    TCCR2A &= ~(1<<COM2B0); // disable output
+    TCCR2A &= ~(1 << COM2B0); // disable output
   }
 }
 
@@ -566,8 +572,8 @@ void buzzerInit()
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
-  TCCR2A = (1<<WGM21); // mode=CTC
-  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
+  TCCR2A = (1 << WGM21); // mode=CTC
+  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -576,18 +582,21 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    digitalWrite(BUZZER_ACT,HIGH);
-    if (ocr>255) {
-      ocr=255;
+    digitalWrite(BUZZER_ACT, HIGH);
+
+    if (ocr > 255) {
+      ocr = 255;
     }
+
     if (!ocr) {
-      ocr=1;
+      ocr = 1;
     }
+
     OCR2A = ocr;
-    TCCR2A |= (1<<COM2B0); // enable output
+    TCCR2A |= (1 << COM2B0); // enable output
   } else {
-    digitalWrite(BUZZER_ACT,LOW);
-    TCCR2A &= ~(1<<COM2B0); // disable output
+    digitalWrite(BUZZER_ACT, LOW);
+    TCCR2A &= ~(1 << COM2B0); // disable output
   }
 }
 
@@ -606,9 +615,9 @@ void buzzerOn(uint16_t freq)
 #define OUTPUTS 8 // outputs available
 
 const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
-  {0x02,0x00,0x00}, {0x00,0x10,0x00}, {0x00,0x00,0x08},// CH1/PPM, CH2/SDA, CH3/RSSI
-  {0x00,0x20,0x00}, {0x00,0x01,0x00}, {0x00,0x02,0x00},// CH4/SCL, CH5/AIN, CH6/AIN,
-  {0x00,0x00,0x01}, {0x00,0x00,0x02},                  // CH7/RXD, CH8/TXD - only on 6ch
+  {0x02, 0x00, 0x00}, {0x00, 0x10, 0x00}, {0x00, 0x00, 0x08}, // CH1/PPM, CH2/SDA, CH3/RSSI
+  {0x00, 0x20, 0x00}, {0x00, 0x01, 0x00}, {0x00, 0x02, 0x00}, // CH4/SCL, CH5/AIN, CH6/AIN,
+  {0x00, 0x00, 0x01}, {0x00, 0x00, 0x02},              // CH7/RXD, CH8/TXD - only on 6ch
 
 };
 
@@ -720,7 +729,7 @@ void setupRfmInterrupt()
 
 void buzzerInit()
 {
-  TCCR4B = (1<<CS43); // prescaler = 128
+  TCCR4B = (1 << CS43); // prescaler = 128
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -729,16 +738,19 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    if (ocr>255) {
-      ocr=255;
+
+    if (ocr > 255) {
+      ocr = 255;
     }
+
     if (!ocr) {
-      ocr=1;
+      ocr = 1;
     }
+
     OCR4C = ocr;
-    TCCR4A |= (1<<COM4B0); // enable output
+    TCCR4A |= (1 << COM4B0); // enable output
   } else {
-    TCCR4A &= ~(1<<COM4B0); // disable output
+    TCCR4A &= ~(1 << COM4B0); // disable output
   }
 }
 
@@ -776,22 +788,22 @@ void buzzerOn(uint16_t freq)
 
 void setupSPI()
 {
-  DDRB |= (1<<DDB1); // SCK PB1 output
-  DDRB |= (1<<DDB2); // SDI/MOSI PB2 output
-  DDRB &= ~(1<<DDB3); // SDO/MISO PB3 input
+  DDRB |= (1 << DDB1); // SCK PB1 output
+  DDRB |= (1 << DDB2); // SDI/MOSI PB2 output
+  DDRB &= ~(1 << DDB3); // SDO/MISO PB3 input
   pinMode(IRQ_pin, INPUT);   //IRQ
   pinMode(nSel_pin, OUTPUT);   //nSEL
 }
 
 void setupRfmInterrupt()
 {
-  PCMSK0 |= (1<<PCINT7); //enable pin change interrupt
-  PCICR |= (1<<PCIE0);
+  PCMSK0 |= (1 << PCINT7); //enable pin change interrupt
+  PCICR |= (1 << PCIE0);
 }
 
 ISR(PCINT0_vect)
 {
-  if(nIRQ_0) { //check if pin is low
+  if (nIRQ_0) { //check if pin is low
     RFM22B_Int();
   }
 }

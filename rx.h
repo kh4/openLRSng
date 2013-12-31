@@ -60,9 +60,11 @@ ISR(TIMER1_OVF_vect)
     ICR1 = nextICR1;
     nextICR1 = servoBits2Us(PPM[ppmCountter]) * 2;
     ppmSync -= nextICR1;
+
     if (ppmSync < (rx_config.minsync * 2)) {
       ppmSync = rx_config.minsync * 2;
     }
+
     if ((disablePPM) || ((rx_config.flags & PPM_MAX_8CH) && (ppmCountter >= 8))) {
       OCR1A = 65535; //do not generate a pulse
     } else {
@@ -70,7 +72,9 @@ ISR(TIMER1_OVF_vect)
     }
 
     while (TCNT1 < 32);
+
     outputDownAll();
+
     if ((!disablePWM) && (ppmCountter > 0)) {
       outputUp(ppmCountter - 1);
     }
@@ -79,15 +83,19 @@ ISR(TIMER1_OVF_vect)
   } else {
     ICR1 = nextICR1;
     nextICR1 = ppmSync;
+
     if (disablePPM) {
       OCR1A = 65535; //do not generate a pulse
     } else {
       OCR1A = nextICR1 - 600;
     }
+
     ppmSync = 40000;
 
     while (TCNT1 < 32);
+
     outputDownAll();
+
     if (!disablePWM) {
       outputUp(ppmChannels - 1);
     }
@@ -99,17 +107,20 @@ ISR(TIMER1_OVF_vect)
 uint16_t RSSI2Bits(uint8_t rssi)
 {
   uint16_t ret = (uint16_t)rssi << 2;
+
   if (ret < 12) {
     ret = 12;
   } else if (ret > 1012) {
     ret = 1012;
   }
+
   return ret;
 }
 
 void set_RSSI_output()
 {
   uint8_t linkq = countSetBits(linkQuality & 0x7fff);
+
   if (linkq == 15) {
     // RSSI 0 - 255 mapped to 192 - ((255>>2)+192) == 192-255
     compositeRSSI = (smoothRSSI >> 2) + 192;
@@ -117,11 +128,13 @@ void set_RSSI_output()
     // linkquality gives 0 to 14*13 == 182
     compositeRSSI = linkq * 13;
   }
+
   if (rx_config.RSSIpwm < 16) {
     cli();
     PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
     sei();
   }
+
   if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
     if ((compositeRSSI == 0) || (compositeRSSI == 255)) {
       TCCR2A &= ~(1 << COM2B1); // disable RSSI PWM output
@@ -145,6 +158,7 @@ void failsafeSave(void)
   failsafeIsValid = 1;
 
   packChannels(6, failsafePPM, ee_buf);
+
   for (int16_t i = 0; i < 20; i++) {
     myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + 4 + i, ee_buf[i]);
   }
@@ -153,6 +167,7 @@ void failsafeSave(void)
   ee_buf[1] = 0x11;
   ee_buf[2] = 0x5A;
   ee_buf[3] = 0xFE;
+
   for (int16_t i = 0; i < 4; i++) {
     myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + i, ee_buf[i]);
   }
@@ -160,6 +175,7 @@ void failsafeSave(void)
   // make this last at least 200ms for user to see it
   // needed as optimized eeprom code can be real fast if no changes are done
   start = millis() - start;
+
   if (start < 200) {
     delay(200 - start);
   }
@@ -177,6 +193,7 @@ void failsafeLoad(void)
     for (int16_t i = 0; i < 20; i++) {
       ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + 4 + i);
     }
+
     unpackChannels(6, failsafePPM, ee_buf);
     failsafeIsValid = 1;
   } else {
@@ -202,6 +219,7 @@ void setupOutputs()
   uint8_t i;
 
   ppmChannels = getChannelCount(&bind_data);
+
   if (rx_config.RSSIpwm == ppmChannels) {
     ppmChannels += 1;
   }
@@ -211,9 +229,11 @@ void setupOutputs()
     chToMask[i].C = 0;
     chToMask[i].D = 0;
   }
+
   clearMask.B = 0xff;
   clearMask.C = 0xff;
   clearMask.D = 0xff;
+
   for (i = 0; i < OUTPUTS; i++) {
     if (rx_config.pinMapping[i] < PPM_CHANNELS) {
       chToMask[rx_config.pinMapping[i]].B |= OUTPUT_MASKS[i].B;
@@ -230,18 +250,22 @@ void setupOutputs()
     case PINMAP_ANALOG:
       pinMode(OUTPUT_PIN[i], INPUT);
       break;
+
     case PINMAP_TXD:
     case PINMAP_RXD:
     case PINMAP_SDA:
     case PINMAP_SCL:
       break; //ignore serial/I2C for now
+
     default:
       if (i == RXD_OUTPUT) {
         UCSR0B &= 0xEF; //disable serial RXD
       }
+
       if (i == TXD_OUTPUT) {
         UCSR0B &= 0xF7; //disable serial TXD
       }
+
       pinMode(OUTPUT_PIN[i], OUTPUT); //PPM,PWM,RSSI,LBEEP
       break;
     }
@@ -261,6 +285,7 @@ void setupOutputs()
       (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_LBEEP)) {
     pinMode(OUTPUT_PIN[RSSI_OUTPUT], OUTPUT);
     digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], LOW);
+
     if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
       TCCR2B = (1 << CS20);
       TCCR2A = (1 << WGM20);
@@ -281,8 +306,8 @@ void setupOutputs()
 
   if ((rx_config.flags & IMMEDIATE_OUTPUT) && failsafeIsValid) {
     failsafeApply();
-    disablePPM=0;
-    disablePWM=0;
+    disablePPM = 0;
+    disablePWM = 0;
   }
 }
 
@@ -311,6 +336,7 @@ uint8_t bindReceive(uint32_t timeout)
       Serial.println("Got pkt\n");
       spiSendAddress(0x7f);   // Send the package read command
       rxb = spiReadData();
+
       if (rxb == 'b') {
         for (uint8_t i = 0; i < sizeof(bind_data); i++) {
           *(((uint8_t*) &bind_data) + i) = spiReadData();
@@ -325,6 +351,7 @@ uint8_t bindReceive(uint32_t timeout)
         }
       } else if ((rxb == 'p') || (rxb == 'i')) {
         uint8_t rxc_buf[sizeof(rx_config) + 1];
+
         if (rxb == 'p') {
           Serial.println(F("Sending RX config"));
           rxc_buf[0] = 'P';
@@ -334,6 +361,7 @@ uint8_t bindReceive(uint32_t timeout)
           rxInitDefaults(1);
           rxc_buf[0] = 'I';
         }
+
         memcpy(rxc_buf + 1, &rx_config, sizeof(rx_config));
         tx_packet(rxc_buf, sizeof(rx_config) + 1);
       } else if (rxb == 't') {
@@ -351,15 +379,18 @@ uint8_t bindReceive(uint32_t timeout)
         for (uint8_t i = 0; i < sizeof(rx_config); i++) {
           *(((uint8_t*) &rx_config) + i) = spiReadData();
         }
+
         rxWriteEeprom();
         rxb = 'U';
         tx_packet(&rxb, 1); // ACK that we updated settings
       }
+
       RF_Mode = Receive;
       rx_reset();
 
     }
   }
+
   return 0;
 }
 
@@ -445,9 +476,11 @@ void setup()
       Serial.println("Saved bind data to EEPROM\n");
       Green_LED_ON;
     }
+
     setupOutputs();
   } else {
     setupOutputs();
+
     if ((rx_config.flags & ALWAYS_BIND) && (!(rx_config.flags & SLAVE_MODE))) {
       if (bindReceive(500)) {
         bindWriteEeprom();
@@ -476,7 +509,8 @@ void setup()
   rfmSetChannel(RF_channel);
 
   // Count hopchannels as we need it later
-  hopcount=0;
+  hopcount = 0;
+
   while ((hopcount < MAXHOPS) && (bind_data.hopchannel[hopcount] != 0)) {
     hopcount++;
   }
@@ -548,10 +582,13 @@ void loop()
     if ((rx_buf[0] & 0x3e) == 0x00) {
       cli();
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
+
       if (rx_config.RSSIpwm < 16) {
         PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
       }
+
       sei();
+
       if (rx_buf[0] & 0x01) {
         if (!fs_saved) {
           failsafeSave();
@@ -567,6 +604,7 @@ void loop()
           // We got new data... (not retransmission)
           uint8_t i;
           tx_buf[0] ^= 0x80; // signal that we got it
+
           for (i = 0; i <= (rx_buf[0] & 7);) {
             i++;
             Serial.write(rx_buf[i]);
@@ -578,6 +616,7 @@ void loop()
     if (linkAcquired == 0) {
       linkAcquired = 1;
     }
+
     failsafeActive = 0;
     disablePWM = 0;
     disablePPM = 0;
@@ -588,13 +627,16 @@ void loop()
       } else {
         tx_buf[0] &= 0xc0;
         tx_buf[0] ^= 0x40; // swap sequence as we have new data
+
         if (serial_head != serial_tail) {
           uint8_t bytes = 0;
+
           while ((bytes < 8) && (serial_head != serial_tail)) {
             bytes++;
             tx_buf[bytes] = serial_buffer[serial_head];
             serial_head = (serial_head + 1) % SERIAL_BUFSIZE;
           }
+
           tx_buf[0] |= (0x37 + bytes);
         } else {
           // tx_buf[0] lowest 6 bits left at 0
@@ -619,14 +661,16 @@ void loop()
           } else {
             tx_buf[3] = 0;
           }
+
           tx_buf[4] = (lastAFCCvalue >> 8);
           tx_buf[5] = lastAFCCvalue & 0xff;
           tx_buf[6] = countSetBits(linkQuality & 0x7fff);
         }
       }
+
       tx_packet_async(tx_buf, 9);
 
-      while(!tx_done()) {
+      while (!tx_done()) {
         checkSerial();
       }
     }
@@ -664,10 +708,12 @@ void loop()
       // we lost packet, hop to next channel
       linkQuality <<= 1;
       willhop = 1;
+
       if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
         lastBeaconTimeMs = 0;
       }
+
       numberOfLostPackets++;
       lastPacketTimeUs += getInterval(&bind_data);
       willhop = 1;
@@ -688,9 +734,11 @@ void loop()
         failsafeApply();
         lastBeaconTimeMs = (timeMs + delayInMsLong(rx_config.beacon_deadtime)) | 1; //beacon activating...
       }
+
       if (rx_config.pwmStopDelay && (!disablePWM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.pwmStopDelay))) {
         disablePWM = 1;
       }
+
       if (rx_config.ppmStopDelay && (!disablePPM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.ppmStopDelay))) {
         disablePPM = 1;
       }
@@ -719,6 +767,7 @@ void loop()
     if ((RF_channel == MAXHOPS) || (bind_data.hopchannel[RF_channel] == 0)) {
       RF_channel = 0;
     }
+
     rfmSetChannel(RF_channel);
     willhop = 0;
   }

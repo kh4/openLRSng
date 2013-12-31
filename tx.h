@@ -60,11 +60,13 @@ void setupPPMinput()
 {
   // Setup timer1 for input capture (PSC=8 -> 0.5ms precision)
   TCCR1A = ((1 << WGM10) | (1 << WGM11));
-  TCCR1B = ((1 << WGM12) | (1 << WGM13) | (1 << CS11) | (1 <<ICNC1));
+  TCCR1B = ((1 << WGM12) | (1 << WGM13) | (1 << CS11) | (1 << ICNC1));
+
   // normally capture on rising edge, allow invertting via SW flag
   if (!(bind_data.flags & INVERTED_PPMIN)) {
     TCCR1B |= (1 << ICES1);
   }
+
   OCR1A = 65535;
   TIMSK1 |= (1 << ICIE1);   // Enable timer1 input capture interrupt
 }
@@ -73,7 +75,8 @@ void setupPPMinput()
 ISR(PPM_Signal_Interrupt)
 {
   uint16_t pulseWidth;
-  if ( (bind_data.flags & INVERTED_PPMIN) ^ PPM_Signal_Edge_Check) {
+
+  if ((bind_data.flags & INVERTED_PPMIN) ^ PPM_Signal_Edge_Check) {
     pulseWidth = TCNT1; // read the timer1 value
     TCNT1 = 0; // reset the timer1 value for next
     processPulse(pulseWidth);
@@ -116,9 +119,11 @@ void bindMode(void)
       RF_Mode = Receive;
       rx_reset();
       delay(50);
+
       if (RF_Mode == Received) {
         RF_Mode = Receive;
         spiSendAddress(0x7f);   // Send the package read command
+
         if ('B' == spiReadData()) {
           sendBinds = 0;
         }
@@ -136,12 +141,15 @@ void bindMode(void)
         Serial.println(F("Enter menu..."));
         handleCLI();
         break;
+
       case '#':
         scannerMode();
         break;
+
       case 'B':
         binaryMode();
         break;
+
       default:
         break;
       }
@@ -171,7 +179,7 @@ void checkButton(void)
       int8_t bzstate = HIGH;
       uint8_t swapProfile = 0;
 
-      buzzerOn(bzstate?BZ_FREQ:0);
+      buzzerOn(bzstate ? BZ_FREQ : 0);
       loop_time = millis();
 
       while (0 == digitalRead(BTN)) {     // wait for button to release
@@ -188,10 +196,12 @@ void checkButton(void)
       }
 
       buzzerOff();
+
       if (swapProfile) {
         profileSwap((activeProfile + 1) % TX_PROFILE_COUNT);
         Serial.print("New profile:");
         Serial.println(activeProfile);
+
         if (bindReadEeprom()) {
           Serial.println("Loaded settings from EEPROM\n");
         } else {
@@ -199,13 +209,16 @@ void checkButton(void)
           bindInitDefaults();
           bindWriteEeprom();
         }
+
         return;
       }
+
       randomSeed(micros()); // button release time in us should give us enough seed
       bindRandomize();
       bindWriteEeprom();
       bindPrint();
     }
+
 just_bind:
     // Enter binding mode, automatically after recoding or when pressed for shorter time.
     Serial.println("Entering binding mode\n");
@@ -293,6 +306,7 @@ void setup(void)
 
   Serial.begin(115200);
   profileInit();
+
   if (bindReadEeprom()) {
     Serial.println("Loaded settings from EEPROM\n");
   } else {
@@ -309,6 +323,7 @@ void setup(void)
   sei();
 
   start = millis();
+
   while ((ppmAge == 255) && ((millis() - start) < 2000));
 
   buzzerOn(BZ_FREQ);
@@ -345,6 +360,7 @@ void setup(void)
   buzzerOn(BZ_FREQ);
   delay(100);
   buzzerOff();
+
   for (uint8_t i = 0; i < activeProfile; i++) {
     delay(100);
     buzzerOn(BZ_FREQ);
@@ -388,23 +404,29 @@ void loop(void)
   if (RF_Mode == Received) {
     // got telemetry packet
     lastTelemetry = micros();
+
     if (!lastTelemetry) {
       lastTelemetry = 1; //fixup rare case of zero
     }
+
     linkQuality |= 1;
     RF_Mode = Receive;
     spiSendAddress(0x7f); // Send the package read command
+
     for (int16_t i = 0; i < 9; i++) {
       rx_buf[i] = spiReadData();
     }
 
     if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
       tx_buf[0] ^= 0x40; // swap sequence to ack
+
       if ((rx_buf[0] & 0x38) == 0x38) {
         uint8_t i;
+
         // transparent serial data...
-        for (i = 0; i<= (rx_buf[0] & 7);) {
+        for (i = 0; i <= (rx_buf[0] & 7);) {
           i++;
+
           if (bind_data.flags & TELEMETRY_FRSKY) {
             frskyUserData(rx_buf[i]);
           } else {
@@ -418,9 +440,11 @@ void loop(void)
         linkQualityRX = rx_buf[6];
       }
     }
+
     if (serial_okToSend == 1) {
       serial_okToSend = 2;
     }
+
     if (serial_okToSend == 3) {
       serial_okToSend = 0;
     }
@@ -445,6 +469,7 @@ void loop(void)
           if (!(bind_data.flags & MUTE_TX)) {
             buzzerOn(BZ_FREQ);
           }
+
           lastTelemetry = 0;
         } else {
           // telemetry link re-established
@@ -454,27 +479,33 @@ void loop(void)
 
       // Construct packet to be sent
       tx_buf[0] &= 0xc0; //preserve seq. bits
+
       if ((serial_tail != serial_head) && (serial_okToSend == 2)) {
         tx_buf[0] ^= 0x80; // signal new data on line
         uint8_t bytes = 0;
         uint8_t maxbytes = 8;
+
         if (getPacketSize(&bind_data) < 9) {
           maxbytes = getPacketSize(&bind_data) - 1;
         }
+
         while ((bytes < maxbytes) && (serial_head != serial_tail)) {
           bytes++;
           tx_buf[bytes] = serial_buffer[serial_head];
           serial_resend[bytes] = serial_buffer[serial_head];
           serial_head = (serial_head + 1) % SERIAL_BUFSIZE;
         }
+
         tx_buf[0] |= (0x37 + bytes);
         serial_resend[0] = bytes;
         serial_okToSend = 3; // sent but not acked
       } else if (serial_okToSend == 4) {
         uint8_t i;
+
         for (i = 0; i < serial_resend[0]; i++) {
           tx_buf[i + 1] = serial_resend[i + 1];
         }
+
         tx_buf[0] |= (0x37 + serial_resend[0]);
         serial_okToSend = 3; // sent but not acked
       } else {
@@ -484,17 +515,21 @@ void loop(void)
         } else {
           tx_buf[0] |= 0x00; // servo positions
           Red_LED_OFF
+
           if (serial_okToSend == 0) {
             serial_okToSend = 1;
           }
+
           if (serial_okToSend == 3) {
             serial_okToSend = 4;  // resend
           }
         }
+
         cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
         packChannels(bind_data.flags & 7, PPM, tx_buf + 1);
         sei();
       }
+
       //Green LED will be on during transmission
       Green_LED_ON;
 
@@ -517,6 +552,7 @@ void loop(void)
         rx_reset();
         // tell loop to sample downlink RSSI
         sampleRSSI = micros();
+
         if (sampleRSSI == 0) {
           sampleRSSI = 1;
         }
@@ -525,6 +561,7 @@ void loop(void)
       if (ppmAge == 8) {
         Red_LED_ON
       }
+
       ppmAge = 9;
       // PPM data outdated - do not send packets
     }
@@ -539,6 +576,7 @@ void loop(void)
     frskyUpdate(RX_ain0, RX_ain1, compRX, compTX, activeProfile);
     //frskyUpdate(RX_ain0,RX_ain1,lastTelemetry?RSSI_rx:0,lastTelemetry?RSSI_tx:0);
   }
+
   //Green LED will be OFF
   Green_LED_OFF;
 
