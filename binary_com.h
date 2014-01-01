@@ -61,26 +61,32 @@ public:
         if (data == PSP_SYNC1) {
           state++;
         }
+
         break;
+
       case 1:
         if (data == PSP_SYNC2) {
           state++;
         } else {
           state = 0; // Restart and try again
         }
+
         break;
+
       case 2:
         code = data;
         message_crc = data;
 
         state++;
         break;
+
       case 3: // LSB
         payload_length_expected = data;
         message_crc ^= data;
 
         state++;
         break;
+
       case 4: // MSB
         payload_length_expected |= data << 8;
         message_crc ^= data;
@@ -95,7 +101,9 @@ public:
 
           state = 0; // Restart
         }
+
         break;
+
       case 5:
         data_buffer[payload_length_received] = data;
         message_crc ^= data;
@@ -104,7 +112,9 @@ public:
         if (payload_length_received >= payload_length_expected) {
           state++;
         }
+
         break;
+
       case 6:
         if (message_crc == data) {
           // CRC is ok, process data
@@ -130,20 +140,24 @@ public:
       protocol_head(PSP_REQ_BIND_DATA, sizeof(bind_data));
       {
         char* array = (char*) &bind_data;
+
         for (uint16_t i = 0; i < sizeof(bind_data); i++) {
           serialize_uint8(array[i]);
         }
       }
       break;
+
     case PSP_REQ_RX_CONFIG:
       protocol_head(PSP_REQ_RX_CONFIG, sizeof(rx_config));
       {
         char* array = (char*) &rx_config;
+
         for (uint16_t i = 0; i < sizeof(rx_config); i++) {
           serialize_uint8(array[i]);
         }
       }
       break;
+
     case PSP_REQ_RX_JOIN_CONFIGURATION:
       protocol_head(PSP_REQ_RX_JOIN_CONFIGURATION, 1);
       // 1 success, 2 timeout, 3 failed response
@@ -151,6 +165,7 @@ public:
       serialize_uint8(rxcConnect());
 
       break;
+
     case PSP_REQ_SCANNER_MODE:
       protocol_head(PSP_REQ_SCANNER_MODE, 1);
       serialize_uint8(0x01);
@@ -160,33 +175,39 @@ public:
 
       return;
       break;
+
     case PSP_REQ_SPECIAL_PINS:
       protocol_head(PSP_REQ_SPECIAL_PINS, sizeof(struct rxSpecialPinMap) * rxcSpecialPinCount);
       {
         char* array = (char*) &rxcSpecialPins;
+
         for (uint16_t i = 0; i < sizeof(struct rxSpecialPinMap) * rxcSpecialPinCount; i++) {
           serialize_uint8(array[i]);
         }
       }
       break;
+
     case PSP_REQ_FW_VERSION:
       protocol_head(PSP_REQ_FW_VERSION, sizeof(version));
       {
         serialize_uint16(version);
       }
       break;
+
     case PSP_REQ_NUMBER_OF_RX_OUTPUTS:
       protocol_head(PSP_REQ_NUMBER_OF_RX_OUTPUTS, 1);
       {
         serialize_uint8(rxcNumberOfOutputs);
       }
       break;
+
     case PSP_REQ_ACTIVE_PROFILE:
       protocol_head(PSP_REQ_ACTIVE_PROFILE, 1);
       {
         serialize_uint8(activeProfile);
       }
       break;
+
       // SET
     case PSP_SET_BIND_DATA:
       protocol_head(PSP_SET_BIND_DATA, 1);
@@ -203,7 +224,9 @@ public:
         // fail (buffer size doesn't match struct memory size)
         serialize_uint8(0x00);
       }
+
       break;
+
     case PSP_SET_RX_CONFIG:
       protocol_head(PSP_SET_RX_CONFIG, 1);
 
@@ -219,12 +242,15 @@ public:
         // fail (buffer size doesn't match struct memory size)
         serialize_uint8(0x00);
       }
+
       break;
+
     case PSP_SET_TX_SAVE_EEPROM:
       protocol_head(PSP_SET_TX_SAVE_EEPROM, 1);
       bindWriteEeprom();
       serialize_uint8(0x01); // success
       break;
+
     case PSP_SET_RX_SAVE_EEPROM:
       protocol_head(PSP_SET_RX_SAVE_EEPROM, 1);
       // 1 success, 0 fail
@@ -241,7 +267,8 @@ public:
         if (RF_Mode == Received) {
           spiSendAddress(0x7f); // Send the package read command
           tx_buf[0] = spiReadData();
-          if (tx_buf[0]=='U') {
+
+          if (tx_buf[0] == 'U') {
             serialize_uint8(0x01); // success
           } else {
             serialize_uint8(0x00); // fail
@@ -251,6 +278,7 @@ public:
         }
       }
       break;
+
     case PSP_SET_TX_RESTORE_DEFAULT:
       protocol_head(PSP_SET_TX_RESTORE_DEFAULT, 1);
 
@@ -258,13 +286,14 @@ public:
 
       serialize_uint8(0x01); // done
       break;
+
     case PSP_SET_RX_RESTORE_DEFAULT:
       protocol_head(PSP_SET_RX_RESTORE_DEFAULT, 1);
       // 1 success, 0 fail
 
       uint8_t tx_buf[1 + sizeof(rx_config)];
       tx_buf[0] = 'i';
-      tx_packet(tx_buf,1);
+      tx_packet(tx_buf, 1);
       rx_reset();
       RF_Mode = Receive;
       delay(200);
@@ -287,17 +316,22 @@ public:
       } else {
         serialize_uint8(0x00); // fail
       }
+
       break;
+
     case PSP_SET_ACTIVE_PROFILE:
       protocol_head(PSP_SET_ACTIVE_PROFILE, 1);
 
       profileSwap(data_buffer[0]);
+
       if (!bindReadEeprom()) {
         bindInitDefaults();
         bindWriteEeprom();
       }
+
       serialize_uint8(0x01); // done
       break;
+
     case PSP_SET_EXIT:
       protocol_head(PSP_SET_EXIT, 1);
       serialize_uint8(0x01);
@@ -307,6 +341,7 @@ public:
 
       return;
       break;
+
     default: // Unrecognized code
       REFUSED();
     }
@@ -341,18 +376,18 @@ public:
 
   void serialize_uint32(uint32_t data) {
     for (uint8_t i = 0; i < 4; i++) {
-      serialize_uint8((uint8_t) (data >> (i * 8)));
+      serialize_uint8((uint8_t)(data >> (i * 8)));
     }
   };
 
   void serialize_uint64(uint64_t data) {
     for (uint8_t i = 0; i < 8; i++) {
-      serialize_uint8((uint8_t) (data >> (i * 8)));
+      serialize_uint8((uint8_t)(data >> (i * 8)));
     }
   };
 
   void serialize_float32(float f) {
-    uint8_t *b = (uint8_t*) & f;
+    uint8_t* b = (uint8_t*) & f;
 
     for (uint8_t i = 0; i < sizeof(f); i++) {
       serialize_uint8(b[i]);

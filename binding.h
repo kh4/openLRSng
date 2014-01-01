@@ -136,9 +136,11 @@ void fatalBlink(uint8_t blinks);
 void myEEPROMwrite(int16_t addr, uint8_t data)
 {
   uint8_t retries = 5;
+
   while ((--retries) && (data != EEPROM.read(addr))) {
     EEPROM.write(addr, data);
   }
+
   if (!retries) {
     fatalBlink(2);
   }
@@ -156,6 +158,7 @@ void profileSet()
 void  profileInit()
 {
   activeProfile = EEPROM.read(EEPROM_PROFILE_OFFSET);
+
   if (activeProfile >= TX_PROFILE_COUNT) {
     activeProfile = 0;
     profileSet();
@@ -165,6 +168,7 @@ void  profileInit()
 void profileSwap(uint8_t profile)
 {
   profileInit();
+
   if ((activeProfile != profile) && (profile < TX_PROFILE_COUNT)) {
     activeProfile = profile;
     profileSet();
@@ -175,9 +179,11 @@ void profileSwap(uint8_t profile)
 int16_t bindReadEeprom()
 {
   uint32_t temp = 0;
+
   for (uint8_t i = 0; i < 4; i++) {
     temp = (temp << 8) + EEPROM.read(EEPROM_OFFSET(activeProfile) + i);
   }
+
   if (temp != BIND_MAGIC) {
     return 0;
   }
@@ -229,6 +235,7 @@ void bindRandomize(void)
   randomSeed(micros());
 
   bind_data.rf_magic = 0;
+
   for (c = 0; c < 4; c++) {
     bind_data.rf_magic = (bind_data.rf_magic << 8) + random(255);
   }
@@ -262,6 +269,7 @@ again:
 uint32_t delayInMs(uint16_t d)
 {
   uint32_t ms;
+
   if (d < 100) {
     ms = d;
   } else if (d < 190) {
@@ -271,6 +279,7 @@ uint32_t delayInMs(uint16_t d)
   } else {
     ms = (d - 205) * 600UL;
   }
+
   return ms * 100UL;
 }
 
@@ -316,18 +325,22 @@ void rxInitDefaults(bool save)
 #if (BOARD_TYPE == 3)
   rx_config.rx_type = RX_FLYTRON8CH;
   rx_config.pinMapping[0] = PINMAP_RSSI; // the CH0 on 8ch RX
+
   for (i = 1; i < 9; i++) {
     rx_config.pinMapping[i] = i - 1; // default to PWM out
   }
+
   rx_config.pinMapping[9] = PINMAP_ANALOG;
   rx_config.pinMapping[10] = PINMAP_ANALOG;
   rx_config.pinMapping[11] = PINMAP_RXD;
   rx_config.pinMapping[12] = PINMAP_TXD;
 #elif (BOARD_TYPE == 5)
   rx_config.rx_type = RX_OLRSNG4CH;
+
   for (i = 0; i < 4; i++) {
     rx_config.pinMapping[i] = i; // default to PWM out
   }
+
   rx_config.pinMapping[4] = 4;
   rx_config.pinMapping[5] = 5;
   rx_config.pinMapping[6] = PINMAP_RXD;
@@ -366,14 +379,19 @@ void rxReadEeprom()
     for (uint8_t i = 0; i < sizeof(rx_config); i++) {
       *((uint8_t*)&rx_config + i) = EEPROM.read(EEPROM_RX_OFFSET + 4 + i);
     }
+
 #if (BOARD_TYPE == 3)
+
     if (rx_config.rx_type != RX_FLYTRON8CH) {
       rxInitDefaults(1);
     }
+
 #elif (BOARD_TYPE == 5)
+
     if (rx_config.rx_type != RX_OLRSNG4CH) {
       rxInitDefaults(1);
     }
+
 #else
 #error FIXME
 #endif

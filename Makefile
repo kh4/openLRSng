@@ -57,8 +57,10 @@ endif
 #
 ifeq ($(COMPILE_TX),1)
 DEFINES=-DBOARD_TYPE=$(BOARD_TYPE) -DCOMPILE_TX
+FIRMWARE_NAME=TX-$(BOARD_TYPE).hex
 else
 DEFINES=-DBOARD_TYPE=$(BOARD_TYPE)
+FIRMWARE_NAME=RX-$(BOARD_TYPE).hex
 endif
 
 #
@@ -124,12 +126,18 @@ INCLUDE=-I$(ARDUINO_CORELIB_PATH) -I$(ARDUINO_VARIANT_PATH) $(ARDUINO_LIB_INCL) 
 #
 # Target object files
 #
-OBJS=openLRSng.o $(ARDUINO_LIB_OBJS) libraries/libcore.a
+OBJS=out/tmp/openLRSng.o $(ARDUINO_LIB_OBJS) libraries/libcore.a
 
 #
 # Master target
 #
-all: openLRSng.hex
+all: all_firmwares
+
+#
+# Target to build one specific firmware
+#
+firmware: out/tmp/openLRSng.hex
+	cp out/tmp/openLRSng.hex out/$(FIRMWARE_NAME)
 
 #
 # From here down are build rules
@@ -148,13 +156,18 @@ endef
 
 .PHONY: all clean upload
 
-%.o: %.ino
+dir_guard=@mkdir -p $(@D)
+
+out/tmp/%.o: %.ino
+	$(dir_guard)
 	$(ino-command)
 
-%.o: %.c
+out/tmp/%.o: %.c
+	$(dir_guard)
 	$(cc-command)
 
-%.o: %.cpp
+out/tmp/%.o: %.cpp
+	$(dir_guard)
 	$(cxx-command)
 
 libraries/%.o: %.c
@@ -167,17 +180,36 @@ libraries/%.o: %.cpp
 # Other targets
 #
 clean:
-	rm -f *.[aod] libraries/*.[aod] *.elf *.eep *.d *.hex
+	rm -rf libraries/*.[aod] out/tmp
 
-openLRSng.hex: $(OBJS)
-	@$(CC) -Os -Wl,--gc-sections -mmcu=atmega328p -o openLRSng.elf $(OBJS) -Llibraries -lm 
+all_firmwares:
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=1 BOARD_TYPE=2
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=1 BOARD_TYPE=3
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=1 BOARD_TYPE=4
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=1 BOARD_TYPE=5
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=1 BOARD_TYPE=6
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=0 BOARD_TYPE=3
+	$(MAKE) clean
+	$(MAKE) firmware COMPILE_TX=0 BOARD_TYPE=5
+
+out/tmp/openLRSng.hex: $(OBJS)
+	@$(CC) -Os -Wl,--gc-sections -mmcu=atmega328p -o out/tmp/openLRSng.elf $(OBJS) -Llibraries -lm
 	@$(OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load \
 		--no-change-warnings --change-section-lma .eeprom=0 \
-		openLRSng.elf openLRSng.eep 
-	@$(OBJCOPY) -O ihex -R .eeprom openLRSng.elf openLRSng.hex 
+		out/tmp/openLRSng.elf out/tmp/openLRSng.eep
+	@$(OBJCOPY) -O ihex -R .eeprom out/tmp/openLRSng.elf out/tmp/openLRSng.hex
 	@echo "NOTE: Deployment size is text + data."
-	@$(SIZE) openLRSng.elf
+	@$(SIZE) out/tmp/openLRSng.elf
 
 libraries/libcore.a: $(ARDUINO_CORELIB_OBJS)
 	$(AR) rcs libraries/libcore.a $(ARDUINO_CORELIB_OBJS)
+
+astyle : $(ASTYLE_FILES:.h=.astyle-check-stamp)
+	astyle --options=etc/astyle.cfg *.h
 

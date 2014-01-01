@@ -14,17 +14,17 @@ volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 ,
 const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
 
 
-uint8_t getPacketSize(struct bind_data *bd)
+uint8_t getPacketSize(struct bind_data* bd)
 {
   return pktsizes[(bd->flags & 0x07)];
 }
 
-uint8_t getChannelCount(struct bind_data *bd)
+uint8_t getChannelCount(struct bind_data* bd)
 {
   return (((bd->flags & 7) / 2) + 1 + (bd->flags & 1)) * 4;
 }
 
-uint32_t getInterval(struct bind_data *bd)
+uint32_t getInterval(struct bind_data* bd)
 {
   uint32_t ret;
   // Sending a x byte packet on bps y takes about (emperical)
@@ -42,9 +42,11 @@ uint32_t getInterval(struct bind_data *bd)
 
   // enable following to limit packet rate to 50Hz at most
 #ifdef LIMIT_RATE_TO_50HZ
+
   if (ret < 20000) {
     ret = 20000;
   }
+
 #endif
 
   return ret;
@@ -62,9 +64,10 @@ uint8_t twoBitfy(uint16_t in)
   }
 }
 
-void packChannels(uint8_t config, volatile uint16_t PPM[], uint8_t *p)
+void packChannels(uint8_t config, volatile uint16_t PPM[], uint8_t* p)
 {
   uint8_t i;
+
   for (i = 0; i <= (config / 2); i++) { // 4ch packed in 5 bytes
     p[0] = (PPM[0] & 0xff);
     p[1] = (PPM[1] & 0xff);
@@ -74,22 +77,25 @@ void packChannels(uint8_t config, volatile uint16_t PPM[], uint8_t *p)
     p += 5;
     PPM += 4;
   }
+
   if (config & 1) { // 4ch packed in 1 byte;
     p[0] = (twoBitfy(PPM[0]) << 6) | (twoBitfy(PPM[1]) << 4) | (twoBitfy(PPM[2]) << 2) | twoBitfy(PPM[3]);
   }
 }
 
-void unpackChannels(uint8_t config, volatile uint16_t PPM[], uint8_t *p)
+void unpackChannels(uint8_t config, volatile uint16_t PPM[], uint8_t* p)
 {
   uint8_t i;
-  for (i=0; i<=(config/2); i++) { // 4ch packed in 5 bytes
+
+  for (i = 0; i <= (config / 2); i++) { // 4ch packed in 5 bytes
     PPM[0] = (((uint16_t)p[4] & 0x03) << 8) + p[0];
     PPM[1] = (((uint16_t)p[4] & 0x0c) << 6) + p[1];
     PPM[2] = (((uint16_t)p[4] & 0x30) << 4) + p[2];
     PPM[3] = (((uint16_t)p[4] & 0xc0) << 2) + p[3];
-    p+=5;
-    PPM+=4;
+    p += 5;
+    PPM += 4;
   }
+
   if (config & 1) { // 4ch packed in 1 byte;
     PPM[0] = (((uint16_t)p[0] >> 6) & 3) * 333 + 12;
     PPM[1] = (((uint16_t)p[0] >> 4) & 3) * 333 + 12;
@@ -152,12 +158,13 @@ uint8_t countSetBits(uint16_t x)
 void fatalBlink(uint8_t blinks)
 {
   while (1) {
-    for (uint8_t i=0; i < blinks; i++) {
+    for (uint8_t i = 0; i < blinks; i++) {
       Red_LED_ON;
       delay(100);
       Red_LED_OFF;
       delay(100);
     }
+
     delay(300);
   }
 }
@@ -381,7 +388,7 @@ uint8_t spiReadData(void)
     Result = (Result << 1) + spiReadBit();
   }
 
-  return(Result);
+  return Result;
 }
 
 uint8_t spiReadRegister(uint8_t address)
@@ -390,7 +397,7 @@ uint8_t spiReadRegister(uint8_t address)
   spiSendAddress(address);
   result = spiReadData();
   nSEL_on;
-  return(result);
+  return result;
 }
 
 void spiWriteRegister(uint8_t address, uint8_t data)
@@ -444,6 +451,7 @@ void setModemRegs(struct rfm22_modem_regs* r)
 void rfmSetCarrierFrequency(uint32_t f)
 {
   uint16_t fb, fc, hbsel;
+
   if (f < 480000000) {
     hbsel = 0;
     fb = f / 10000000 - 24;
@@ -453,6 +461,7 @@ void rfmSetCarrierFrequency(uint32_t f)
     fb = f / 20000000 - 24;
     fc = (f - (fb + 24) * 20000000) * 2 / 625;
   }
+
   spiWriteRegister(0x75, 0x40 + (hbsel ? 0x20 : 0) + (fb & 0x1f));
   spiWriteRegister(0x76, (fc >> 8));
   spiWriteRegister(0x77, (fc & 0xff));
@@ -494,6 +503,7 @@ void init_rfm(uint8_t isbind)
   spiWriteRegister(0x39, 0x00);    // synch word 0 (not used)
 
   uint32_t magic = isbind ? BIND_MAGIC : bind_data.rf_magic;
+
   for (uint8_t i = 0; i < 4; i++) {
     spiWriteRegister(0x3a + i, (magic >> 24) & 0xff);   // tx header
     spiWriteRegister(0x3f + i, (magic >> 24) & 0xff);   // rx header
@@ -566,7 +576,9 @@ void tx_packet_async(uint8_t* pkt, uint8_t size)
 void tx_packet(uint8_t* pkt, uint8_t size)
 {
   tx_packet_async(pkt, size);
+
   while ((RF_Mode == Transmit) && ((micros() - tx_start) < 100000));
+
   if (RF_Mode == Transmit) {
     Serial.println("TX timeout!");
   }
@@ -586,9 +598,11 @@ uint8_t tx_done()
 #endif
     return 1; // success
   }
+
   if ((micros() - tx_start) > 100000) {
     return 2; // timeout
   }
+
   return 0;
 }
 
@@ -616,7 +630,7 @@ void beacon_send(void)
   ItStatus1 = spiReadRegister(0x03);   // read status, clear interrupt
   ItStatus2 = spiReadRegister(0x04);
   spiWriteRegister(0x06, 0x00);    // no wakeup up, lbd,
-  spiWriteRegister(0x07, RF22B_PWRSTATE_READY);      // disable lbd, wakeup timer, use internal 32768,xton = 1; in ready mode
+  spiWriteRegister(0x07, RF22B_PWRSTATE_READY); // disable lbd, wakeup timer, use internal 32768,xton = 1; in ready mode
   spiWriteRegister(0x09, 0x7f);  // (default) c = 12.5p
   spiWriteRegister(0x0a, 0x05);
   spiWriteRegister(0x0b, 0x12);    // gpio0 TX State
@@ -654,7 +668,7 @@ void beacon_send(void)
 
   spiWriteRegister(0x6d, 0x05);   // 5 set mid power 25mW
   delay(10);
-  beacon_tone(440,1);
+  beacon_tone(440, 1);
 
   spiWriteRegister(0x6d, 0x04);   // 4 set mid power 13mW
   delay(10);
@@ -662,7 +676,7 @@ void beacon_send(void)
 
   spiWriteRegister(0x6d, 0x02);   // 2 set min power 3mW
   delay(10);
-  beacon_tone(175,1);
+  beacon_tone(175, 1);
 
   spiWriteRegister(0x6d, 0x00);   // 0 set min power 1.3mW
   delay(10);
@@ -679,6 +693,7 @@ void printVersion(uint16_t v)
   Serial.print(v >> 8);
   Serial.print('.');
   Serial.print((v >> 4) & 0x0f);
+
   if (version & 0x0f) {
     Serial.print('.');
     Serial.print(v & 0x0f);
