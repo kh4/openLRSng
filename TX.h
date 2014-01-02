@@ -19,13 +19,14 @@ uint32_t lastSent = 0;
 
 uint32_t lastTelemetry = 0;
 
-uint32_t lastFrSky = 0;
-
 uint8_t RSSI_rx = 0;
 uint8_t RSSI_tx = 0;
 uint8_t RX_ain0 = 0;
 uint8_t RX_ain1 = 0;
 uint32_t sampleRSSI = 0;
+
+uint16_t linkQuality = 0;
+uint16_t linkQualityRX = 0;
 
 volatile uint8_t ppmAge = 0; // age of PPM data
 
@@ -168,7 +169,6 @@ void bindMode(void)
         scannerMode();
         break;
       case 'B':
-        Serial.println(F("Entering binary mode"));
         binaryMode();
         break;
       default:
@@ -313,8 +313,7 @@ void setup(void)
 
   buzzerInit();
 
-  Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
-  //Serial.set_blocking_writes(false);
+  Serial.begin(115200, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
 
   if (bindReadEeprom()) {
     Serial.println("Loaded settings from EEPROM\n");
@@ -322,7 +321,6 @@ void setup(void)
     Serial.print("EEPROM data not valid, reiniting\n");
     bindInitDefaults();
     bindWriteEeprom();
-    Serial.print("EEPROM data saved\n");
   }
 
   setupPPMinput();
@@ -331,7 +329,7 @@ void setup(void)
   setupRfmInterrupt();
 
   init_rfm(0);
-  rfmSetChannel(bind_data.hopchannel[RF_channel]);
+  rfmSetChannel(RF_channel);
 
   sei();
 
@@ -342,10 +340,13 @@ void setup(void)
   digitalWrite(BTN, HIGH);
   Red_LED_ON ;
 
-  Serial.println("OpenLRSng starting");
+  Serial.println("OpenLRSng TX starting");
 
   delay(200);
   checkBND();
+
+  // switch to userdefined baudrate here
+  TelemetrySerial.begin(bind_data.serial_baudrate);
   checkButton();
 
   Red_LED_OFF;
@@ -354,12 +355,10 @@ void setup(void)
 
   serial_okToSend = 0;
 
-  if (bind_data.flags & FRSKY_ENABLED) {
-    FrSkyInit();
-    lastFrSky = micros();
-    Serial.begin(9600);
-  } else if (bind_data.flags & TELEMETRY_ENABLED) {
-    Serial.begin(bind_data.serial_baudrate);
+  if (bind_data.flags & TELEMETRY_FRSKY) {
+    frskyInit((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_SMARTPORT);
+  } else if (bind_data.flags & TELEMETRY_MASK) {
+	 Serial.begin(bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
   }
 
   while (Serial.available()) { // Flush serial rx buffer
@@ -385,6 +384,7 @@ void loop(void)
     if (!lastTelemetry) {
       lastTelemetry = 1; //fixup rare case of zero
     }
+    linkQuality|=1;
     RF_Mode = Receive;
     spiSendAddress(0x7f);   // Send the package read command
     for (int16_t i = 0; i < bind_data.serial_downlink; i++) {
@@ -400,16 +400,17 @@ void loop(void)
         // transparent serial data...
         for (i = 0; i <= (rx_buf[0] & 7);) {
           i++;
-          if (bind_data.flags & FRSKY_ENABLED) {
-            FrSkyUserData(rx_buf[i]);
+          if (bind_data.flags & TELEMETRY_FRSKY) {
+            frskyUserData(rx_buf[i]);
           } else {
-            Serial.write(rx_buf[i]);
+            TelemetrySerial.write(rx_buf[i]);
           }
         }
       } else if ((rx_buf[0] & 0x3F) == 0) {
         RSSI_rx = rx_buf[1];
         RX_ain0 = rx_buf[2];
         RX_ain1 = rx_buf[3];
+        linkQualityRX = rx_buf[6];
       }
 #else
       // transparent serial data...
@@ -417,16 +418,16 @@ void loop(void)
       if (serialByteCount > 0) {
         //char dbg[14];
         //sprintf(dbg, "got: %d", serialByteCount);
-        //Serial.println(dbg);
+        //TelemetrySerial.println(dbg);
 
         for (uint8_t i = 1; i <= serialByteCount; i++) {
           // Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
           // Inject packet right after a completed packet
           const uint8_t ch = rx_buf[i];
-          Serial.write(ch);
+          TelemetrySerial.write(ch);
           if (frameDetector.Parse(ch) && time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL) {
             // Inject Mavlink radio modem status package.
-            MAVLink_report(RSSI_rx, RSSI_tx, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+            MAVLink_report(&TelemetrySerial, 0, RSSI_tx, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
             last_mavlinkInject_time = time;
           }
         }
@@ -457,7 +458,9 @@ void loop(void)
       if (lastTelemetry) {
         if ((time - lastTelemetry) > getInterval(&bind_data)) {
           // telemetry lost
-          buzzerOn(BZ_FREQ);
+          if (!(bind_data.flags & MUTE_TX)) {
+            buzzerOn(BZ_FREQ);
+          }
           rxerrors++;
           lastTelemetry = 0;
         } else {
@@ -517,7 +520,7 @@ void loop(void)
       Green_LED_ON ;
 
       // Send the data over RF
-      rfmSetChannel(bind_data.hopchannel[RF_channel]);
+      rfmSetChannel(RF_channel);
 
       tx_packet(tx_buf, getPacketSize(&bind_data));
 
@@ -529,7 +532,8 @@ void loop(void)
       }
 
       // do not switch channel as we may receive telemetry on the old channel
-      if (bind_data.flags & TELEMETRY_ENABLED) {
+      if (bind_data.flags & TELEMETRY_MASK) {
+        linkQuality<<=1;
         RF_Mode = Receive;
         rx_reset();
         // tell loop to sample downlink RSSI
@@ -550,11 +554,14 @@ void loop(void)
 
   }
 
-  if (bind_data.flags & FRSKY_ENABLED) {
-    if ((micros() - lastFrSky) > FRSKY_INTERVAL) {
-      lastFrSky = micros();
-      FrSkySendFrame(RX_ain0, RX_ain1, lastTelemetry ? RSSI_rx : 0, lastTelemetry ? RSSI_tx : 0);
-    }
+  if (bind_data.flags & TELEMETRY_FRSKY) {
+    uint8_t linkQualityTX = countSetBits(linkQuality & 0xfffe);
+
+    uint8_t compRX = (uint16_t)((RSSI_rx >> 2) + 192) * linkQualityRX / 15;
+    uint8_t compTX = (uint16_t)((RSSI_tx >> 2) + 192) * linkQualityTX / 15;
+
+    frskyUpdate(RX_ain0, RX_ain1, compRX, compTX);
+    //frskyUpdate(RX_ain0,RX_ain1,lastTelemetry?RSSI_rx:0,lastTelemetry?RSSI_tx:0);
   }
 
   //Green LED will be OFF

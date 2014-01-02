@@ -83,7 +83,7 @@ uint8_t	serial_read_space()
 
 
 /// send a MAVLink status report packet
-void MAVLink_report(uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+void MAVLink_report(FastSerial* serialPort, uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
 {
 	g_mavlinkBuffer[0] = 254;
 	g_mavlinkBuffer[1] = sizeof(struct mavlink_RADIO_v10);
@@ -110,18 +110,10 @@ void MAVLink_report(uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
 
 	mavlink_crc(g_mavlinkBuffer);
 
-	if (Serial.txspace() >= sizeof(g_mavlinkBuffer)) 		// don't cause an overflow
+	if (serialPort->txspace() >= sizeof(g_mavlinkBuffer)) 		// don't cause an overflow
 	{
-		Serial.write(g_mavlinkBuffer, sizeof(g_mavlinkBuffer));
+		serialPort->write(g_mavlinkBuffer, sizeof(g_mavlinkBuffer));
 	}
-
-	/*
-	if (serial_write_space() < sizeof(struct mavlink_RADIO_v09)+8) {
-		return;
-	}
-
-	serial_write_buf(g_mavlinkBuffer, sizeof(struct mavlink_RADIO_v09)+8);
-	*/
 }
 
 #endif

@@ -4,6 +4,8 @@
 #define BOARD_TYPE RX_BOARD_TYPE
 #endif
 
+// Generic definitions needed always
+
 #define Available 0
 #define Transmit 1
 #define Transmitted 2
@@ -24,8 +26,38 @@ void RFM22B_Int()
 }
 
 typedef struct pinMask {
-  uint8_t B, C, D;
+  uint8_t B,C,D;
 } pinMask_t;
+
+
+#define RX_FLYTRON8CH 0x01
+#define RX_OLRSNG4CH  0x02
+#define RX_OLRSNG12CH 0x03
+#define RX_DTFUHF10CH 0x04
+
+#define PINMAP_PPM    0x20
+#define PINMAP_RSSI   0x21
+#define PINMAP_SDA    0x22
+#define PINMAP_SCL    0x23
+#define PINMAP_RXD    0x24
+#define PINMAP_TXD    0x25
+#define PINMAP_ANALOG 0x26
+#define PINMAP_LBEEP  0x27 // packetloss beeper
+
+// Following table is used by the dialog code to
+// determine possible extra functions for each output.
+
+
+struct rxSpecialPinMap {
+  uint8_t output;
+  uint8_t type;
+};
+
+#ifdef COMPILE_TX
+// Needed by dialog code
+static const char *specialStrs[] = { "PPM","RSSI","SDA","SCL","RXD","TXD","AIN","LBEEP"};
+#define SPECIALSTR(x) (specialStrs[(x)&7]) // note must be changed if not 8 strings
+#endif
 
 //####### Board Pinouts #########
 
@@ -37,6 +69,8 @@ typedef struct pinMask {
 #ifndef COMPILE_TX
 #error TX module cannot be used as RX
 #endif
+
+#define TelemetrySerial Serial
 
 #define PPM_IN A5
 #define BUZZER 9
@@ -63,9 +97,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER, HIGH);
+    digitalWrite(BUZZER,HIGH);
   } else {
-    digitalWrite(BUZZER, LOW);
+    digitalWrite(BUZZER,LOW);
   }
 }
 
@@ -119,6 +153,8 @@ void setupRfmInterrupt()
 #error M1 RX not verified yet
 #endif
 
+#define TelemetrySerial Serial
+
 #define PPM_IN 5
 #define BUZZER 7
 #define BTN 8
@@ -145,9 +181,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER, HIGH);
+    digitalWrite(BUZZER,HIGH);
   } else {
-    digitalWrite(BUZZER, LOW);
+    digitalWrite(BUZZER,LOW);
   }
 }
 
@@ -201,6 +237,8 @@ void setupRfmInterrupt()
 #error TX module cannot be used as RX
 #endif
 
+#define TelemetrySerial Serial
+
 #define PPM_IN 3
 #define RF_OUT_INDICATOR A0
 #define BUZZER 10
@@ -227,9 +265,9 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER, HIGH);
+    digitalWrite(BUZZER,HIGH);
   } else {
-    digitalWrite(BUZZER, LOW);
+    digitalWrite(BUZZER,LOW);
   }
 }
 
@@ -280,6 +318,7 @@ void setupRfmInterrupt()
 #endif
 
 #ifdef COMPILE_TX
+#define TelemetrySerial Serial
 
 #define USE_ICP1 // use ICP1 for PPM input for less jitter
 
@@ -293,8 +332,8 @@ void buzzerInit()
 {
   pinMode(BUZZER, OUTPUT);
   digitalWrite(BUZZER, LOW);
-  TCCR2A = (1 << WGM21); // mode=CTC
-  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
+  TCCR2A = (1<<WGM21); // mode=CTC
+  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
   pinMode(BUZZER2, OUTPUT);
   digitalWrite(BUZZER2, LOW);
 }
@@ -302,19 +341,19 @@ void buzzerInit()
 void buzzerOn(uint16_t freq)
 {
   if (freq) {
-    digitalWrite(BUZZER, HIGH);
+    digitalWrite(BUZZER,HIGH);
     uint32_t ocr = 125000L / freq;
-    if (ocr > 255) {
-      ocr = 255;
+    if (ocr>255) {
+      ocr=255;
     }
     if (!ocr) {
-      ocr = 1;
+      ocr=1;
     }
     OCR2A = ocr;
-    TCCR2A |= (1 << COM2B0); // enable output on buzzer2
+    TCCR2A |= (1<<COM2B0); // enable output on buzzer2
   } else {
-    digitalWrite(BUZZER, LOW);
-    TCCR2A &= ~(1 << COM2B0); // disable output buzzer2
+    digitalWrite(BUZZER,LOW);
+    TCCR2A &= ~(1<<COM2B0); // disable output buzzer2
   }
 }
 
@@ -326,11 +365,11 @@ void buzzerOn(uint16_t freq)
 #define OUTPUTS 13 // outputs available
 
 const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
-  {0x00, 0x00, 0x08}, {0x00, 0x00, 0x20}, {0x00, 0x00, 0x40}, // RSSI, CH1, CH2
-  {0x00, 0x00, 0x80}, {0x01, 0x00, 0x00}, {0x02, 0x00, 0x00}, // CH2, CH3, CH4
-  {0x04, 0x00, 0x00}, {0x08, 0x00, 0x00}, {0x10, 0x00, 0x00}, // CH5, CH6, CH7
-  {0x00, 0x10, 0x00}, {0x00, 0x20, 0x00}, {0x00, 0x00, 0x01}, // SDA, SCL, RXD
-  {0x00, 0x00, 0x02},                                 // TXD
+  {0x00,0x00,0x08},{0x00,0x00,0x20},{0x00,0x00,0x40}, // RSSI, CH1, CH2
+  {0x00,0x00,0x80},{0x01,0x00,0x00},{0x02,0x00,0x00}, // CH2, CH3, CH4
+  {0x04,0x00,0x00},{0x08,0x00,0x00},{0x10,0x00,0x00}, // CH5, CH6, CH7
+  {0x00,0x10,0x00},{0x00,0x20,0x00},{0x00,0x00,0x01}, // SDA, SCL, RXD
+  {0x00,0x00,0x02},                                   // TXD
 };
 
 const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12 , A4, A5, 0, 1};
@@ -343,6 +382,18 @@ const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12 , A4, A5, 0, 
 #define SCL_OUTPUT 10
 #define RXD_OUTPUT 11
 #define TXD_OUTPUT 12
+
+struct rxSpecialPinMap rxSpecialPins[] = {
+  {  0, PINMAP_RSSI},
+  {  0, PINMAP_LBEEP},
+  {  5, PINMAP_PPM},
+  {  9, PINMAP_SDA},
+  {  9, PINMAP_ANALOG}, // AIN0
+  { 10, PINMAP_SCL},
+  { 10, PINMAP_ANALOG}, // AIN1
+  { 11, PINMAP_RXD},
+  { 12, PINMAP_TXD},
+};
 
 #endif
 
@@ -411,6 +462,8 @@ void setupRfmInterrupt()
 #error TX module cannot be used as RX
 #endif
 
+#define TelemetrySerial Serial
+
 #define USE_ICP1 // use ICP1 for PPM input for less jitter
 #define PPM_IN 8 // ICP1
 
@@ -423,8 +476,8 @@ void setupRfmInterrupt()
 
 void buzzerInit()
 {
-  TCCR2A = (1 << WGM21); // mode=CTC
-  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
+  TCCR2A = (1<<WGM21); // mode=CTC
+  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
   pinMode(BUZZER, OUTPUT);
   digitalWrite(BUZZER, LOW);
 }
@@ -433,16 +486,16 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    if (ocr > 255) {
-      ocr = 255;
+    if (ocr>255) {
+      ocr=255;
     }
     if (!ocr) {
-      ocr = 1;
+      ocr=1;
     }
     OCR2A = ocr;
-    TCCR2A |= (1 << COM2B0); // enable output
+    TCCR2A |= (1<<COM2B0); // enable output
   } else {
-    TCCR2A &= ~(1 << COM2B0); // disable output
+    TCCR2A &= ~(1<<COM2B0); // disable output
   }
 }
 
@@ -506,16 +559,18 @@ void setupRfmInterrupt()
 #ifdef COMPILE_TX
 // TX operation
 
+#define TelemetrySerial Serial
+
 #define USE_ICP1 // use ICP1 for PPM input for less jitter
 #define PPM_IN 8 // ICP1
 
 #define BUZZER 3 // OCR2B
-#define BTN A0
+#define BTN    A4
 
 void buzzerInit()
 {
-  TCCR2A = (1 << WGM21); // mode=CTC
-  TCCR2B = (1 << CS22) | (1 << CS20); // prescaler = 128
+  TCCR2A = (1<<WGM21); // mode=CTC
+  TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
   pinMode(BUZZER, OUTPUT);
   digitalWrite(BUZZER, LOW);
 }
@@ -524,16 +579,16 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    if (ocr > 255) {
-      ocr = 255;
+    if (ocr>255) {
+      ocr=255;
     }
     if (!ocr) {
-      ocr = 1;
+      ocr=1;
     }
     OCR2A = ocr;
-    TCCR2A |= (1 << COM2B0); // enable output
+    TCCR2A |= (1<<COM2B0); // enable output
   } else {
-    TCCR2A &= ~(1 << COM2B0); // disable output
+    TCCR2A &= ~(1<<COM2B0); // disable output
   }
 }
 
@@ -546,13 +601,15 @@ void buzzerOn(uint16_t freq)
 #define PWM_2 A4 // PC4 - also SDA
 #define PWM_3 3 // PD3 - also RSSI
 #define PWM_4 A5 // PC5 - also SCL
+#define PWM_5 A0 // PC0
+#define PWM_6 A1 // PC1
 
-#define OUTPUTS 6 // outputs available
+#define OUTPUTS 8 // outputs available
 
 const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
-  {0x02, 0x00, 0x00}, {0x00, 0x10, 0x00}, {0x00, 0x00, 0x08}, // CH1/PPM, CH2/SDA, CH3/RSSI
-  {0x00, 0x20, 0x00}, {0x00, 0x00, 0x01}, {0x00, 0x00, 0x02}, // CH4/SCL, RXD/CH5, TXD/CH6
-
+  {0x02,0x00,0x00}, {0x00,0x10,0x00}, {0x00,0x00,0x08},// CH1/PPM, CH2/SDA, CH3/RSSI
+  {0x00,0x20,0x00}, {0x00,0x01,0x00}, {0x00,0x02,0x00},// CH4/SCL, CH5/AIN, CH6/AIN,
+  {0x00,0x00,0x01}, {0x00,0x00,0x02},                  // CH7/RXD, CH8/TXD - only on 6ch
 
 };
 
@@ -560,25 +617,49 @@ const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
 #define RSSI_OUTPUT 2
 #define ANALOG0_OUTPUT 1 // actually input
 #define ANALOG1_OUTPUT 3 // actually input
+#define ANALOG0_OUTPUT_ALT 4 // actually input
+#define ANALOG1_OUTPUT_ALT 5 // actually input
 #define SDA_OUTPUT 1
 #define SCL_OUTPUT 3
-#define RXD_OUTPUT 4
-#define TXD_OUTPUT 5
+#define RXD_OUTPUT 6
+#define TXD_OUTPUT 7
 
-const uint8_t OUTPUT_PIN[OUTPUTS] = { 9, A4, 3, A5 , 0 , 1};
+const uint8_t OUTPUT_PIN[OUTPUTS] = { 9, A4, 3, A5, A0, A1, 0, 1};
+
+struct rxSpecialPinMap rxSpecialPins[] = {
+  { 0, PINMAP_PPM},
+  { 1, PINMAP_SDA},
+  { 1, PINMAP_ANALOG}, // AIN0
+  { 2, PINMAP_RSSI},
+  { 2, PINMAP_LBEEP},
+  { 3, PINMAP_SCL},
+  { 3, PINMAP_ANALOG}, // AIN1
+  { 4, PINMAP_ANALOG},
+  { 5, PINMAP_ANALOG},
+  { 6, PINMAP_RXD},
+  { 7, PINMAP_TXD},
+};
 
 #endif
 
 #define Red_LED 6
 #define Green_LED 5
 
+#ifndef COMPILE_TX
+#define Red_LED_ON    PORTD |=  _BV(6);
+#define Red_LED_OFF   PORTD &= ~_BV(6);
+#define Green_LED_ON  PORTD |=  _BV(5);
+#define Green_LED_OFF PORTD &= ~_BV(5);
+#else
+#define Red_LED2   A0
+#define Green_LED2 A1
+#define Red_LED_ON    { PORTD |=  _BV(6); PORTC |=  _BV(0); }
+#define Red_LED_OFF   { PORTD &= ~_BV(6); PORTC &= ~_BV(0); }
+#define Green_LED_ON  { PORTD |=  _BV(5); PORTC |=  _BV(1); }
+#define Green_LED_OFF { PORTD &= ~_BV(5); PORTC &= ~_BV(1); }
+#endif
+
 #define buzzerOff(foo) buzzerOn(0)
-
-#define Red_LED_ON  PORTD |= _BV(6);
-#define Red_LED_OFF  PORTD &= ~_BV(6);
-
-#define Green_LED_ON   PORTD |= _BV(5);
-#define Green_LED_OFF  PORTD &= ~_BV(5);
 
 //## RFM22B Pinouts for Public Edition (M2)
 #define  nIRQ_1 (PIND & 0x04)==0x04 //D2
@@ -628,6 +709,8 @@ void setupRfmInterrupt()
 #error TX module cannot be used as RX
 #endif
 
+#define TelemetrySerial Serial1
+
 #define USE_ICP1 // use ICP1 for PPM input for less jitter
 #define PPM_IN 4 // ICP1
 
@@ -638,7 +721,7 @@ void setupRfmInterrupt()
 
 void buzzerInit()
 {
-  TCCR4B = (1 << CS43); // prescaler = 128
+  TCCR4B = (1<<CS43); // prescaler = 128
   pinMode(BUZZER, OUTPUT);
   digitalWrite(BUZZER, LOW);
 }
@@ -647,16 +730,16 @@ void buzzerOn(uint16_t freq)
 {
   if (freq) {
     uint32_t ocr = 125000L / freq;
-    if (ocr > 255) {
-      ocr = 255;
+    if (ocr>255) {
+      ocr=255;
     }
     if (!ocr) {
-      ocr = 1;
+      ocr=1;
     }
     OCR4C = ocr;
-    TCCR4A |= (1 << COM4B0); // enable output
+    TCCR4A |= (1<<COM4B0); // enable output
   } else {
-    TCCR4A &= ~(1 << COM4B0); // disable output
+    TCCR4A &= ~(1<<COM4B0); // disable output
   }
 }
 
@@ -694,17 +777,17 @@ void buzzerOn(uint16_t freq)
 
 void setupSPI()
 {
-  DDRB |= (1 << DDB1); // SCK PB1 output
-  DDRB |= (1 << DDB2); // SDI/MOSI PB2 output
-  DDRB &= ~(1 << DDB3); // SDO/MISO PB3 input
+  DDRB |= (1<<DDB1); // SCK PB1 output
+  DDRB |= (1<<DDB2); // SDI/MOSI PB2 output
+  DDRB &= ~(1<<DDB3); // SDO/MISO PB3 input
   pinMode(IRQ_pin, INPUT);   //IRQ
   pinMode(nSel_pin, OUTPUT);   //nSEL
 }
 
 void setupRfmInterrupt()
 {
-  PCMSK0 |= (1 << PCINT7); //enable pin change interrupt
-  PCICR |= (1 << PCIE0);
+  PCMSK0 |= (1<<PCINT7); //enable pin change interrupt
+  PCICR |= (1<<PCIE0);
 }
 
 ISR(PCINT0_vect)
@@ -718,58 +801,3 @@ ISR(PCINT0_vect)
 
 #endif
 
-// Generic defines needed by pinmapping on RX:s
-#define RX_FLYTRON8CH 0x01
-#define RX_OLRSNG4CH  0x02
-#define RX_OLRSNG12CH 0x03
-#define RX_DTFUHF10CH 0x04
-
-#define PINMAP_PPM  0x20
-#define PINMAP_RSSI 0x21
-#define PINMAP_SDA  0x22
-#define PINMAP_SCL  0x23
-#define PINMAP_RXD  0x24
-#define PINMAP_TXD  0x25
-#define PINMAP_ANALOG 0x26
-#define PINMAP_LBEEP  0x27 // packetloss beeper
-
-// RX type information used by TX
-#ifdef COMPILE_TX
-
-// Following table is used by the dialog code to
-// determine possible extra functions for each output.
-
-struct rxSpecialPinMap {
-  unsigned char rxtype;
-  unsigned char output;
-  unsigned char type;
-} rxSpecialPins[] = {
-  {RX_FLYTRON8CH,  0, PINMAP_RSSI},
-  {RX_FLYTRON8CH,  0, PINMAP_LBEEP},
-  {RX_FLYTRON8CH,  5, PINMAP_PPM},
-  {RX_FLYTRON8CH,  9, PINMAP_SDA},
-  {RX_FLYTRON8CH,  9, PINMAP_ANALOG}, // AIN0
-  {RX_FLYTRON8CH, 10, PINMAP_SCL},
-  {RX_FLYTRON8CH, 10, PINMAP_ANALOG}, // AIN1
-  {RX_FLYTRON8CH, 11, PINMAP_RXD},
-  {RX_FLYTRON8CH, 12, PINMAP_TXD},
-  {RX_OLRSNG4CH,   0, PINMAP_PPM},
-  {RX_OLRSNG4CH,   1, PINMAP_SDA},
-  {RX_OLRSNG4CH,   1, PINMAP_ANALOG}, // AIN0
-  {RX_OLRSNG4CH,   2, PINMAP_RSSI},
-  {RX_OLRSNG4CH,   2, PINMAP_LBEEP},
-  {RX_OLRSNG4CH,   3, PINMAP_SCL},
-  {RX_OLRSNG4CH,   3, PINMAP_ANALOG}, // AIN1
-  {RX_OLRSNG4CH,   4, PINMAP_RXD},
-  {RX_OLRSNG4CH,   5, PINMAP_TXD},
-  {RX_DTFUHF10CH,  8, PINMAP_RSSI},
-  {RX_DTFUHF10CH,  8, PINMAP_LBEEP},
-  {RX_DTFUHF10CH,  9, PINMAP_PPM},
-  {0, 0, 0},
-};
-
-static const char *specialStrs[] = { "PPM", "RSSI", "SDA", "SCL", "RXD", "TXD", "AIN", "LBEEP"};
-
-#define SPECIALSTR(x) (specialStrs[(x)&7]) // note must be changed if not 8 strings
-
-#endif

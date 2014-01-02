@@ -11,19 +11,21 @@ uint16_t rxerrors = 0;
 
 uint8_t RF_channel = 0;
 
-uint32_t time;
-uint32_t last_pack_time = 0;
-uint32_t last_rssi_time = 0;
+uint32_t lastPacketTimeUs = 0;
+uint32_t lastRSSITimeUs = 0;
+uint32_t linkLossTimeMs;
 
-uint32_t fs_time; // time when failsafe activated
 
-uint32_t last_beacon;
+uint32_t lastBeaconTimeMs;
 
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
-uint8_t  last_rssi_value = 0;
+uint8_t  lastRSSIvalue = 0;
 uint8_t  smoothRSSI = 0;
-uint16_t last_afcc_value = 0;
+uint8_t  compositeRSSI = 0;
+uint16_t lastAFCCvalue = 0;
+
+uint16_t linkQuality = 0;
 
 uint8_t  ppmCountter = 0;
 uint16_t ppmSync = 40000;
@@ -31,9 +33,13 @@ uint8_t  ppmChannels = 8;
 
 volatile uint8_t disablePWM = 0;
 volatile uint8_t disablePPM = 0;
+uint8_t failsafeActive = 0;
 
-uint8_t firstpack = 0;
-uint8_t lostpack = 0;
+uint16_t failsafePPM[PPM_CHANNELS];
+uint8_t  failsafeIsValid = 0;
+
+uint8_t linkAcquired = 0;
+uint8_t numberOfLostPackets = 0;
 
 boolean willhop = 0, fs_saved = 0;
 
@@ -98,31 +104,105 @@ ISR(TIMER1_OVF_vect)
   }
 }
 
-void setPPM_RSSI(uint8_t val)
+uint16_t RSSI2Bits(uint8_t rssi)
 {
-  cli();
-
-#if REVERSE_PPM_RSSI_SERVO == 1
-  PPM[rx_config.RSSIpwm] = 1024 - uint16_t(smoothRSSI << 2);
-#else
-  PPM[rx_config.RSSIpwm] = smoothRSSI << 2;
-#endif
-
-  sei();
+  uint16_t ret = (uint16_t)rssi << 2;
+  if (ret<12) {
+    ret=12;
+  } else if (ret>1012) {
+    ret=1012;
+  }
+  return ret;
 }
 
-void set_RSSI_output( uint8_t val )
+void set_PPM_RSSI_output()
 {
-  if (rx_config.RSSIpwm < 16) {
-    setPPM_RSSI(val);
-  }
+	if (rx_config.RSSIpwm < 16) {
+		cli();
+#if REVERSE_PPM_RSSI_SERVO == 1
+		PPM[rx_config.RSSIpwm] = 1024 - RSSI2Bits(compositeRSSI);
+#else
+		PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
+#endif
+		sei();
+	}
+}
+
+void set_RSSI_output()
+{
+  set_PPM_RSSI_output();
+
   if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
-    if ((val == 0) || (val == 255)) {
+    if ((compositeRSSI == 0) || (compositeRSSI == 255)) {
       TCCR2A &= ~(1 << COM2B1); // disable RSSI PWM output
-      digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], (val == 0) ? LOW : HIGH);
+      digitalWrite(OUTPUT_PIN[RSSI_OUTPUT], (compositeRSSI == 0) ? LOW : HIGH);
     } else {
-      OCR2B = val;
+      OCR2B = compositeRSSI;
       TCCR2A |= (1 << COM2B1); // enable RSSI PWM output
+    }
+  }
+}
+
+void failsafeSave(void)
+{
+  uint32_t start = millis();
+  uint8_t ee_buf[20];
+
+  for (int16_t i = 0; i < PPM_CHANNELS; i++) {
+    failsafePPM[i]=PPM[i];
+  }
+
+  failsafeIsValid = 1;
+
+  packChannels(6, failsafePPM, ee_buf);
+  for (int16_t i = 0; i < 20; i++) {
+    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + 4 +i, ee_buf[i]);
+  }
+
+  ee_buf[0]=0xFA;
+  ee_buf[1]=0x11;
+  ee_buf[2]=0x5A;
+  ee_buf[3]=0xFE;
+  for (int16_t i = 0; i < 4; i++) {
+    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + i, ee_buf[i]);
+  }
+
+  // make this last at least 200ms for user to see it
+  // needed as optimized eeprom code can be real fast if no changes are done
+  start = millis() - start;
+  if (start<200) {
+    delay(200-start);
+  }
+}
+
+void failsafeLoad(void)
+{
+  uint8_t ee_buf[20];
+
+  for (int16_t i = 0; i < 4; i++) {
+    ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + i);
+  }
+
+  if ((ee_buf[0]==0xFA) && (ee_buf[1]==0x11) && (ee_buf[2]==0x5A) && (ee_buf[3]==0xFE)) {
+    for (int16_t i = 0; i < 20; i++) {
+      ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + 4 +i);
+    }
+    unpackChannels(6, failsafePPM, ee_buf);
+    failsafeIsValid = 1;
+  } else {
+    failsafeIsValid = 0;
+  }
+}
+
+void failsafeApply()
+{
+  if (failsafeIsValid) {
+    for (int16_t i = 0; i < PPM_CHANNELS; i++) {
+      if (i!=rx_config.RSSIpwm) {
+        cli();
+        PPM[i]=failsafePPM[i];
+        sei();
+      }
     }
   }
 }
@@ -130,6 +210,11 @@ void set_RSSI_output( uint8_t val )
 void setupOutputs()
 {
   uint8_t i;
+
+  ppmChannels = getChannelCount(&bind_data);
+  if (rx_config.RSSIpwm == ppmChannels) {
+    ppmChannels+=1;
+  }
 
   for (i = 0; i < OUTPUTS; i++) {
     chToMask[i].B = 0;
@@ -179,8 +264,8 @@ void setupOutputs()
     TCCR1A = (1 << WGM11);
   }
 
-  disablePWM = 0;
-  disablePPM = 0;
+  disablePWM = 1;
+  disablePPM = 1;
 
   if ((rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) ||
       (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_LBEEP)) {
@@ -204,6 +289,11 @@ void setupOutputs()
   ppmCountter = 0;
   TIMSK1 |= (1 << TOIE1);
 
+  if ((rx_config.flags & IMMEDIATE_OUTPUT) && failsafeIsValid) {
+    failsafeApply();
+    disablePPM=0;
+    disablePWM=0;
+  }
 }
 
 void updateLBeep(boolean packetlost)
@@ -214,50 +304,6 @@ void updateLBeep(boolean packetlost)
     } else {
       TCCR2A &= ~(1 << COM2B0); // disable tone
     }
-  }
-}
-
-void save_failsafe_values(void)
-{
-  uint32_t start = millis();
-  uint8_t ee_buf[20];
-
-  packChannels(6, PPM, ee_buf);
-  for (int16_t i = 0; i < 20; i++) {
-    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + 4 + i, ee_buf[i]);
-  }
-
-  ee_buf[0] = 0xFA;
-  ee_buf[1] = 0x11;
-  ee_buf[2] = 0x5A;
-  ee_buf[3] = 0xFE;
-  for (int16_t i = 0; i < 4; i++) {
-    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + i, ee_buf[i]);
-  }
-
-  // make this last at least 200ms for user to see it
-  // needed as optimized eeprom code can be real fast if no changes are done
-  start = millis() - start;
-  if (start < 200) {
-    delay(200 - start);
-  }
-}
-
-void load_failsafe_values(void)
-{
-  uint8_t ee_buf[20];
-
-  for (int16_t i = 0; i < 4; i++) {
-    ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + i);
-  }
-
-  if ((ee_buf[0] == 0xFA) && (ee_buf[1] == 0x11) && (ee_buf[2] == 0x5A) && (ee_buf[3] == 0xFE)) {
-    for (int16_t i = 0; i < 20; i++) {
-      ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + 4 + i);
-    }
-    cli();
-    unpackChannels(6, PPM, ee_buf);
-    sei();
   }
 }
 
@@ -295,13 +341,23 @@ uint8_t bindReceive(uint32_t timeout)
           timeout = 0;
         } else {
           Serial.println(F("Reinit RX config"));
-          rxInitDefaults();
-          rxWriteEeprom();
+          rxInitDefaults(1);
           rxc_buf[0] = 'I';
         }
-        memcpy(rxc_buf + 1, &rx_config, sizeof(rx_config));
-        tx_packet(rxc_buf, sizeof(rx_config) + 1);
-      } else if (rxb == 'u') {
+        memcpy(rxc_buf+1, &rx_config, sizeof(rx_config));
+        tx_packet(rxc_buf,sizeof(rx_config)+1);
+      } else if (rxb=='t') {
+        uint8_t rxc_buf[sizeof(rxSpecialPins)+5];
+        Serial.println(F("Sending RX type info"));
+        timeout=0;
+        rxc_buf[0]='T';
+        rxc_buf[1]=(version >> 8);
+        rxc_buf[2]=(version & 0xff);
+        rxc_buf[3]=OUTPUTS;
+        rxc_buf[4]=sizeof(rxSpecialPins)/sizeof(rxSpecialPins[0]);
+        memcpy(rxc_buf+5, &rxSpecialPins, sizeof(rxSpecialPins));
+        tx_packet(rxc_buf,sizeof(rxSpecialPins)+5);
+      } else if (rxb=='u') {
         for (uint8_t i = 0; i < sizeof(rx_config); i++) {
           *(((uint8_t*)&rx_config) + i) = spiReadData();
         }
@@ -317,34 +373,17 @@ uint8_t bindReceive(uint32_t timeout)
   return 0;
 }
 
-uint8_t checkIfGrounded(uint8_t pin)
-{
-  int8_t ret = 0;
-
-  pinMode(pin, INPUT);
-  digitalWrite(pin, 1);
-  delay(10);
-
-  if (!digitalRead(pin)) {
-    ret = 1;
-  }
-
-  digitalWrite(pin, 0);
-
-  return ret;
-}
-
 int8_t checkIfConnected(uint8_t pin1, uint8_t pin2)
 {
   int8_t ret = 0;
   pinMode(pin1, OUTPUT);
   digitalWrite(pin1, 1);
   digitalWrite(pin2, 1);
-  delay(10);
+  delayMicroseconds(10);
 
   if (digitalRead(pin2)) {
     digitalWrite(pin1, 0);
-    delay(10);
+    delayMicroseconds(10);
 
     if (!digitalRead(pin2)) {
       ret = 1;
@@ -387,9 +426,11 @@ void setup()
   pinMode(0, INPUT);   // Serial Rx
   pinMode(1, OUTPUT);  // Serial Tx
 
-  Serial.begin(SERIAL_BAUD_RATE, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
+  Serial.begin(115200, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
 
   rxReadEeprom();
+  failsafeLoad();
+  Serial.println("OpenLRSng RX starting");
 
   setupRfmInterrupt();
 
@@ -410,11 +451,14 @@ void setup()
       Serial.println("Saved bind data to EEPROM\n");
       Green_LED_ON;
     }
+    setupOutputs();
   } else {
+    setupOutputs();
     if ((rx_config.flags & ALWAYS_BIND) && (!(rx_config.flags & SLAVE_MODE))) {
       if (bindReceive(500)) {
         bindWriteEeprom();
         Serial.println("Saved bind data to EEPROM\n");
+        setupOutputs(); // parameters may have changed
         Green_LED_ON;
       }
     }
@@ -432,19 +476,11 @@ void setup()
     }
   }
 
-  ppmChannels = getChannelCount(&bind_data);
-  if (rx_config.RSSIpwm == ppmChannels) {
-    ppmChannels += 1;
-  }
+  Serial.print("Entering normal mode");
 
-  Serial.print("Entering normal mode with PPM ");
-  Serial.print((rx_config.pinMapping[PPM_OUTPUT] == PINMAP_PPM) ? "Enabled" : "Disabled");
-  Serial.print(" CHs=");
-  Serial.println(ppmChannels);
-  Serial.println(bind_data.flags, 16);
   init_rfm(0);   // Configure the RFM22B's registers for normal operation
   RF_channel = 0;
-  rfmSetChannel(bind_data.hopchannel[RF_channel]);
+  rfmSetChannel(RF_channel);
 
   // Count hopchannels as we need it later
   hopcount = 0;
@@ -456,21 +492,24 @@ void setup()
   RF_Mode = Receive;
   to_rx_mode();
 
-  if (bind_data.flags & TELEMETRY_ENABLED) {
-    Serial.begin((bind_data.flags & FRSKY_ENABLED) ? 9600 : bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
-    while (Serial.available()) { // Flush rx buffer
-      Serial.read();
-    }
+  if ((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_FRSKY) {
+    Serial.begin(9600);
+  } else {
+    Serial.begin(bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
   }
-  firstpack = 0;
-  last_pack_time = micros();
+
+  while (Serial.available()) {
+    Serial.read();
+  }
+  linkAcquired = 0;
+  lastPacketTimeUs = micros();
 
 }
 
 //############ MAIN LOOP ##############
 void loop()
 {
-  uint32_t time;
+  uint32_t timeUs,timeMs;
 
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("RX hang");
@@ -478,12 +517,14 @@ void loop()
     to_rx_mode();
   }
 
-  time = micros();
+  timeUs = micros();
 
   if (RF_Mode == Received) {   // RFM22B int16_t pin Enabled by received Data
 
-    last_pack_time = micros(); // record last package time
-    lostpack = 0;
+    lastPacketTimeUs = micros(); // record last package time
+    numberOfLostPackets = 0;
+    linkQuality <<= 1;
+    linkQuality |= 1;
 
     Red_LED_OFF;
     Green_LED_ON;
@@ -496,18 +537,16 @@ void loop()
       rx_buf[i] = spiReadData();
     }
 
-    last_afcc_value = rfmGetAFCC();
+    lastAFCCvalue = rfmGetAFCC();
 
     if ((rx_buf[0] & 0x3e) == 0x00) {
       cli();
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
-      if (rx_config.RSSIpwm < 16) {
-        setPPM_RSSI(smoothRSSI);
-      }
-      sei();
+      set_PPM_RSSI_output(); // Override PPM from TX with RSSI value.
+	  sei();
       if (rx_buf[0] & 0x01) {
         if (!fs_saved) {
-          save_failsafe_values();
+          failsafeSave();
           fs_saved = 1;
         }
       } else if (fs_saved) {
@@ -527,10 +566,10 @@ void loop()
 #if MAVLINK_INJECT == 1
             // Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
             // Inject packet right after a completed packet
-            if (frameDetector.Parse(ch) && time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL) {
+            if (frameDetector.Parse(ch) && timeUs - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL) {
               // Inject Mavlink radio modem status package.
-              MAVLink_report(0, smoothRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
-              last_mavlinkInject_time = time;
+              MAVLink_report(&Serial, 0, compositeRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+              last_mavlinkInject_time = timeUs;
             }
 #endif
           }
@@ -538,15 +577,14 @@ void loop()
       }
     }
 
-    if (firstpack == 0) {
-      firstpack = 1;
-      setupOutputs();
-    } else {
-      disablePWM = 0;
-      disablePPM = 0;
+    if (linkAcquired == 0) {
+      linkAcquired = 1;
     }
+    failsafeActive = 0;
+    disablePWM = 0;
+    disablePPM = 0;
 
-    if (bind_data.flags & TELEMETRY_ENABLED) {
+    if (bind_data.flags & TELEMETRY_MASK) {
 #if MAVLINK_INJECT == 0
       if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
         // resend last message
@@ -562,19 +600,30 @@ void loop()
           tx_buf[0] |= (0x37 + bytes);
         } else {
           // tx_buf[0] lowest 6 bits left at 0
-          tx_buf[1] = last_rssi_value;
+          tx_buf[1] = lastRSSIvalue;
+
           if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT]) >> 2;
+            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT])>>2;
+#ifdef ANALOG0_OUTPUT_ALT
+          } else if (rx_config.pinMapping[ANALOG0_OUTPUT_ALT] == PINMAP_ANALOG) {
+            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT_ALT])>>2;
+#endif
           } else {
             tx_buf[2] = 0;
           }
+
           if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT]) >> 2;
+            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT])>>2;
+#ifdef ANALOG1_OUTPUT_ALT
+          } else if (rx_config.pinMapping[ANALOG1_OUTPUT_ALT] == PINMAP_ANALOG) {
+            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT_ALT])>>2;
+#endif
           } else {
             tx_buf[3] = 0;
           }
-          tx_buf[4] = (last_afcc_value >> 8);
-          tx_buf[5] = last_afcc_value & 0xff;
+          tx_buf[4] = (lastAFCCvalue >> 8);
+          tx_buf[5] = lastAFCCvalue & 0xff;
+          tx_buf[6] = countSetBits(linkQuality&0xefff);
         }
       }
 #else
@@ -604,81 +653,80 @@ void loop()
     Green_LED_OFF;
   }
 
-  time = micros();
+  timeUs = micros();
+  timeMs = millis();
 
   // sample RSSI when packet is in the 'air'
-  if ((lostpack < 2) && (last_rssi_time != last_pack_time) &&
-      (time - last_pack_time) > (getInterval(&bind_data) - 1500)) {
-    last_rssi_time = last_pack_time;
-    last_rssi_value = rfmGetRSSI(); // Read the RSSI value
-    RSSI_sum += last_rssi_value;    // tally up for average
+  if ((numberOfLostPackets < 2) && (lastRSSITimeUs != lastPacketTimeUs) &&
+      (timeUs - lastPacketTimeUs) > (getInterval(&bind_data) - 1500)) {
+    lastRSSITimeUs = lastPacketTimeUs;
+    lastRSSIvalue = rfmGetRSSI(); // Read the RSSI value
+    RSSI_sum += lastRSSIvalue;    // tally up for average
     RSSI_count++;
 
-    if (RSSI_count > 20) {
+    if (RSSI_count > 8) {
       RSSI_sum /= RSSI_count;
-      RSSI_sum = map(constrain(RSSI_sum, 45, 200), 40, 200, 0, 255);
-      smoothRSSI = (uint8_t)(((uint16_t)smoothRSSI * 6 + (uint16_t)RSSI_sum * 2) / 8);
-      set_RSSI_output(smoothRSSI);
+      smoothRSSI = (((uint16_t)smoothRSSI * 3 + (uint16_t)RSSI_sum * 1)/4);
+      compositeRSSI = (uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
+      set_RSSI_output();
       RSSI_sum = 0;
       RSSI_count = 0;
     }
   }
 
-  if (firstpack) {
-    if ((lostpack < hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) + 1000))) {
+  if (linkAcquired) {
+    if ((numberOfLostPackets < hopcount) && ((timeUs - lastPacketTimeUs) > (getInterval(&bind_data) + 1000))) {
       // we lost packet, hop to next channel
+      linkQuality <<= 1;
       willhop = 1;
-      if (lostpack == 0) {
-        fs_time = time;
-        last_beacon = 0;
-        rxerrors++;
+      if (numberOfLostPackets==0) {
+        linkLossTimeMs = timeMs;
+        lastBeaconTimeMs = 0;
+		rxerrors++;
       }
-      lostpack++;
-      last_pack_time += getInterval(&bind_data);
+      numberOfLostPackets++;
+      lastPacketTimeUs += getInterval(&bind_data);
       willhop = 1;
       Red_LED_ON;
       updateLBeep(true);
-      if (smoothRSSI > 30) {
-        smoothRSSI -= 30;
-      } else {
-        smoothRSSI = 0;
-      }
-      set_RSSI_output(smoothRSSI);
-    } else if ((lostpack == hopcount) && ((time - last_pack_time) > (getInterval(&bind_data) * hopcount))) {
+      compositeRSSI=(uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
+      set_RSSI_output();
+    } else if ((numberOfLostPackets == hopcount) && ((timeUs - lastPacketTimeUs) > (getInterval(&bind_data) * hopcount))) {
       // hop slowly to allow resync with TX
+      linkQuality = 0;
       willhop = 1;
-      smoothRSSI = 0;
-      set_RSSI_output(smoothRSSI);
-      last_pack_time = time;
+      compositeRSSI=(uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
+      set_RSSI_output();
+      lastPacketTimeUs = timeUs;
     }
 
-    if (lostpack) {
-      if ((fs_time) && ((time - fs_time) > FAILSAFE_TIME(rx_config))) {
-        load_failsafe_values();
-        if (rx_config.flags & FAILSAFE_NOPWM) {
-          disablePWM = 1;
-        }
-        if (rx_config.flags & FAILSAFE_NOPPM) {
-          disablePPM = 1;
-        }
-        fs_time = 0;
-        last_beacon = (time + ((uint32_t)rx_config.beacon_deadtime * 1000000UL)) | 1; //beacon activating...
+    if (numberOfLostPackets) {
+      if (rx_config.failsafeDelay && (!failsafeActive) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.failsafeDelay))) {
+        failsafeActive = 1;
+        failsafeApply();
+        lastBeaconTimeMs = (timeMs + delayInMsLong(rx_config.beacon_deadtime)) | 1; //beacon activating...
+      }
+      if (rx_config.pwmStopDelay && (!disablePWM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.pwmStopDelay))) {
+        disablePWM = 1;
+      }
+      if (rx_config.ppmStopDelay && (!disablePPM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.ppmStopDelay))) {
+        disablePPM = 1;
       }
 
-      if ((rx_config.beacon_frequency) && (last_beacon)) {
-        if (((time - last_beacon) < 0x80000000) && // last beacon is future during deadtime
-            (time - last_beacon) > ((uint32_t)rx_config.beacon_interval * 1000000UL)) {
+      if ((rx_config.beacon_frequency) && (lastBeaconTimeMs)) {
+        if (((timeMs - lastBeaconTimeMs) < 0x80000000) && // last beacon is future during deadtime
+            (timeMs - lastBeaconTimeMs) > (1000UL * rx_config.beacon_interval)) {
           beacon_send();
           init_rfm(0);   // go back to normal RX
           rx_reset();
-          last_beacon = micros() | 1; // avoid 0 in time
+          lastBeaconTimeMs = millis() | 1; // avoid 0 in time
         }
       }
     }
   } else {
     // Waiting for first packet, hop slowly
-    if ((time - last_pack_time) > (getInterval(&bind_data) * hopcount)) {
-      last_pack_time = time;
+    if ((timeUs - lastPacketTimeUs) > (getInterval(&bind_data) * hopcount)) {
+      lastPacketTimeUs = timeUs;
       willhop = 1;
     }
   }
@@ -689,7 +737,7 @@ void loop()
     if ((RF_channel == MAXHOPS) || (bind_data.hopchannel[RF_channel] == 0)) {
       RF_channel = 0;
     }
-    rfmSetChannel(bind_data.hopchannel[RF_channel]);
+    rfmSetChannel(RF_channel);
     willhop = 0;
   }
 

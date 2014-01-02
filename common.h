@@ -13,7 +13,6 @@ volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 ,
 
 const static uint8_t pktsizes[8] = {0, 7, 11, 12, 16, 17, 21, 0};
 
-const static char *chConfStr[8] = {"N/A", "4+4", "8", "8+4", "12", "12+4", "16", "N/A"};
 
 uint8_t getPacketSize(struct bind_data *bd)
 {
@@ -34,7 +33,7 @@ uint32_t getInterval(struct bind_data *bd)
 
   ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(bd), modem_params[bd->modem_params].bps) + 2000);
 
-  if (bd->flags & TELEMETRY_ENABLED) {
+  if (bd->flags & TELEMETRY_MASK) {
     ret += (BYTES_AT_BAUD_TO_USEC(bd->serial_downlink, modem_params[bd->modem_params].bps) + 1000);
   }
 
@@ -138,6 +137,15 @@ uint16_t servoBits2Us(uint16_t x)
   }
 
   return ret;
+}
+
+uint8_t countSetBits(uint16_t x)
+{
+  x  = x - ((x >> 1) & 0x5555);
+  x  = (x & 0x3333) + ((x >> 2) & 0x3333);
+  x  = x + (x >> 4);
+  x &= 0x0F0F;
+  return (x * 0x0101) >> 8;
 }
 
 // Halt and blink failure code
@@ -398,7 +406,10 @@ void spiWriteRegister(uint8_t address, uint8_t data)
 
 void rfmSetChannel(uint8_t ch)
 {
-  spiWriteRegister(0x79, ch);
+  uint8_t magicLSB = (bind_data.rf_magic & 0xff) ^ ch;
+  spiWriteRegister(0x79, bind_data.hopchannel[ch]);
+  spiWriteRegister(0x3a + 3, magicLSB);
+  spiWriteRegister(0x3f + 3, magicLSB);
 }
 
 uint8_t rfmGetRSSI(void)
@@ -662,3 +673,17 @@ void beacon_send(void)
   spiWriteRegister(0x07, RF22B_PWRSTATE_READY);
   Green_LED_OFF
 }
+
+// Print version, either x.y or x.y.z (if z != 0)
+void printVersion(uint16_t v)
+{
+  Serial.print(v >> 8);
+  Serial.print('.');
+  Serial.print((v >> 4) & 0x0f);
+  if (version & 0x0f) {
+    Serial.print('.');
+    Serial.print(v & 0x0f);
+  }
+}
+
+
