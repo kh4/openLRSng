@@ -43,12 +43,15 @@
 
 #define MUTE_TX       0x20 // do not beep on telemetry loss
 
+#define INVERTED_PPMIN 0x40
+#define MICROPPM       0x80
+
 #define DEFAULT_FLAGS (CHANNELS_8 | TELEMETRY_PASSTHRU)
 
-// helpper macro for European PMR channels
+// helper macro for European PMR channels
 #define EU_PMR_CH(x) (445993750L + 12500L * (x)) // valid for ch1-ch8
 
-// helpper macro for US FRS channels 1-7
+// helper macro for US FRS channels 1-7
 #define US_FRS_CH(x) (462537500L + 25000L * (x)) // valid for ch1-ch7
 
 #define DEFAULT_BEACON_FREQUENCY 0 // disable beacon
@@ -64,7 +67,12 @@
 #define BINDING_POWER     0x06 // not lowest since may result fail with RFM23BP
 #define BINDING_VERSION   9
 
-#define EEPROM_OFFSET          0x100
+#define EEPROM_PROFILE_OFFSET  0x040 // profile number on TX
+#ifdef COMPILE_TX
+#define EEPROM_OFFSET(no)      (0x100 + (no)*0x40)
+#else
+#define EEPROM_OFFSET(no)      0x100
+#endif
 #define EEPROM_RX_OFFSET       0x140 // RX specific config struct
 #define EEPROM_FAILSAFE_OFFSET 0x180
 
@@ -107,19 +115,18 @@ struct bind_data {
   uint8_t flags;
 } bind_data;
 
-
 struct rfm22_modem_regs {
   uint32_t bps;
   uint8_t  r_1c, r_1d, r_1e, r_20, r_21, r_22, r_23, r_24, r_25, r_2a, r_6e, r_6f, r_70, r_71, r_72;
 } modem_params[] = {
   { 4800, 0x1a, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x1b, 0x1e, 0x27, 0x52, 0x2c, 0x23, 0x30 }, // 50000 0x00
   { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 }, // 25000 0x00
-  { 19200,0x06, 0x40, 0x0a, 0xd0, 0x00, 0x9d, 0x49, 0x00, 0x7b, 0x28, 0x9d, 0x49, 0x2c, 0x23, 0x30 },  // 25000 0x01
-  { 57600,0x05, 0x40, 0x0a, 0x45, 0x01, 0xd7, 0xdc, 0x03, 0xb8, 0x1e, 0x0e, 0xbf, 0x00, 0x23, 0x2e },
-  {125000,0x8a, 0x40, 0x0a, 0x60, 0x01, 0x55, 0x55, 0x02, 0xad, 0x1e, 0x20, 0x00, 0x00, 0x23, 0xc8 },
+  { 19200, 0x06, 0x40, 0x0a, 0xd0, 0x00, 0x9d, 0x49, 0x00, 0x7b, 0x28, 0x9d, 0x49, 0x2c, 0x23, 0x30 }, // 25000 0x01
+  { 57600, 0x05, 0x40, 0x0a, 0x45, 0x01, 0xd7, 0xdc, 0x03, 0xb8, 0x1e, 0x0e, 0xbf, 0x00, 0x23, 0x2e },
+  { 125000, 0x8a, 0x40, 0x0a, 0x60, 0x01, 0x55, 0x55, 0x02, 0xad, 0x1e, 0x20, 0x00, 0x00, 0x23, 0xc8 },
 };
 
-#define DATARATE_COUNT (sizeof(modem_params)/sizeof(modem_params[0]))
+#define DATARATE_COUNT (sizeof(modem_params) / sizeof(modem_params[0]))
 
 struct rfm22_modem_regs bind_params =
 { 9600, 0x05, 0x40, 0x0a, 0xa1, 0x20, 0x4e, 0xa5, 0x00, 0x20, 0x24, 0x4e, 0xa5, 0x2c, 0x23, 0x30 };
@@ -139,18 +146,46 @@ void myEEPROMwrite(int16_t addr, uint8_t data)
   }
 }
 
+#ifdef COMPILE_TX
+#define TX_PROFILE_COUNT 4
+uint8_t activeProfile = 0;
+
+void profileSet()
+{
+  myEEPROMwrite(EEPROM_PROFILE_OFFSET, activeProfile);
+}
+
+void  profileInit()
+{
+  activeProfile = EEPROM.read(EEPROM_PROFILE_OFFSET);
+  if (activeProfile >= TX_PROFILE_COUNT) {
+    activeProfile = 0;
+    profileSet();
+  }
+}
+
+void profileSwap(uint8_t profile)
+{
+  profileInit();
+  if ((activeProfile != profile) && (profile < TX_PROFILE_COUNT)) {
+    activeProfile = profile;
+    profileSet();
+  }
+}
+#endif
+
 int16_t bindReadEeprom()
 {
   uint32_t temp = 0;
   for (uint8_t i = 0; i < 4; i++) {
-    temp = (temp << 8) + EEPROM.read(EEPROM_OFFSET + i);
+    temp = (temp << 8) + EEPROM.read(EEPROM_OFFSET(activeProfile) + i);
   }
   if (temp != BIND_MAGIC) {
     return 0;
   }
 
   for (uint8_t i = 0; i < sizeof(bind_data); i++) {
-    *((uint8_t*)&bind_data + i) = EEPROM.read(EEPROM_OFFSET + 4 + i);
+    *((uint8_t*)&bind_data + i) = EEPROM.read(EEPROM_OFFSET(activeProfile) + 4 + i);
   }
 
   if (bind_data.version != BINDING_VERSION) {
@@ -163,11 +198,11 @@ int16_t bindReadEeprom()
 void bindWriteEeprom(void)
 {
   for (uint8_t i = 0; i < 4; i++) {
-    myEEPROMwrite(EEPROM_OFFSET + i, (BIND_MAGIC >> ((3 - i) * 8)) & 0xff);
+    myEEPROMwrite(EEPROM_OFFSET(activeProfile) + i, (BIND_MAGIC >> ((3 - i) * 8)) & 0xff);
   }
 
   for (uint8_t i = 0; i < sizeof(bind_data); i++) {
-    myEEPROMwrite(EEPROM_OFFSET + 4 + i, *((uint8_t*)&bind_data + i));
+    myEEPROMwrite(EEPROM_OFFSET(activeProfile) + 4 + i, *((uint8_t*)&bind_data + i));
   }
 }
 
@@ -233,11 +268,11 @@ uint32_t delayInMs(uint16_t d)
   if (d < 100) {
     ms = d;
   } else if (d < 190) {
-    ms = (d-90) * 10UL;
+    ms = (d - 90) * 10UL;
   } else if (d < 210) {
-    ms = (d-180) * 100UL;
+    ms = (d - 180) * 100UL;
   } else {
-    ms = (d-205) * 600UL;
+    ms = (d - 205) * 600UL;
   }
   return ms * 100UL;
 }
@@ -248,7 +283,7 @@ uint32_t delayInMs(uint16_t d)
 // 110-255 - 5m - 150m (1m res)
 uint32_t delayInMsLong(uint8_t d)
 {
-  return delayInMs((uint16_t)d+100);
+  return delayInMs((uint16_t)d + 100);
 }
 
 struct RX_config {
@@ -270,7 +305,7 @@ struct RX_config {
 void rxWriteEeprom()
 {
   for (uint8_t i = 0; i < 4; i++) {
-    myEEPROMwrite(EEPROM_RX_OFFSET + i, (BIND_MAGIC >> ((3-i) * 8))& 0xff);
+    myEEPROMwrite(EEPROM_RX_OFFSET + i, (BIND_MAGIC >> ((3 - i) * 8)) & 0xff);
   }
 
   for (uint8_t i = 0; i < sizeof(rx_config); i++) {

@@ -9,9 +9,9 @@ void tx_packet(uint8_t* pkt, uint8_t size);
 void to_rx_mode(void);
 
 #define PPM_CHANNELS 16
-volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 , 512, 512, 512, 512, 512, 512, 512, 512};
+volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 , 512, 512, 512, 512, 512, 512, 512, 512 };
 
-const static uint8_t pktsizes[8] = {0, 7, 11, 12, 16, 17, 21, 0};
+const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
 
 
 uint8_t getPacketSize(struct bind_data *bd)
@@ -29,7 +29,7 @@ uint32_t getInterval(struct bind_data *bd)
   uint32_t ret;
   // Sending a x byte packet on bps y takes about (emperical)
   // usec = (x + 15) * 8200000 / baudrate
-#define BYTES_AT_BAUD_TO_USEC(bytes,bps) ((uint32_t)((bytes)+15) * 8200000L / (uint32_t)(bps))
+#define BYTES_AT_BAUD_TO_USEC(bytes, bps) ((uint32_t)((bytes) + 15) * 8200000L / (uint32_t)(bps))
 
   ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(bd), modem_params[bd->modem_params].bps) + 2000);
 
@@ -166,7 +166,7 @@ void fatalBlink(uint8_t blinks)
 void scannerMode(void)
 {
   char c;
-  uint32_t nextConfig[4] = {0, 0, 0, 0};
+  uint32_t nextConfig[4] = { 0, 0, 0, 0 };
   uint32_t startFreq = MIN_RFM_FREQUENCY, endFreq = MAX_RFM_FREQUENCY, nrSamples = 500, stepSize = 50000;
   uint32_t currentFrequency = startFreq;
   uint32_t currentSamples = 0;
@@ -303,7 +303,6 @@ void spiSendCommand(uint8_t command);
 void spiSendAddress(uint8_t i);
 uint8_t spiReadData(void);
 void spiWriteData(uint8_t i);
-
 
 void to_sleep_mode(void);
 void rx_reset(void);

@@ -6,8 +6,8 @@
 		- Variable (selectable through CLI) downlink telemetry packet size.
 		- Injection of mavlink radio modem status packets. Lets ArduPilot adjust packet send rate automatically in order to avoid lost packets due to overload.
 		
-	All features from openLRSng v3.3.4 are still supported, except for:
-		- FRSKY emulation (will not work, planning to make this supported by making mavlink a setting).
+	All features from openLRSng v3.5 are still supported, except for:
+		- FRSKY emulation or smartport (will not work, planning to make this supported by making mavlink a setting).
 		
 		
 	A note to those wanting to use a joystick to control the mav: It could possible be done, but the focus on this project
@@ -24,9 +24,8 @@ USING THE SOFTWARE WITH MISSION PLANNER
 			APM TX -> OpenLRS RX
 			APM RX -> OpenLRS TX
 			APM GND -> OpenLRS GND
-			Do NOT connect the 5V wire to the OpenLRS Rx since this may damage the 3.3V radio module. So you need a total of three wires.
-			
-			
+			Do NOT connect the 5V wire to the OpenLRS Rx since this will damage the 3.3V radio module. So you need a total of three wires.
+			If ground wire is already connected to the Rx unit which is probably true in most cases via the RC wiring, the only wires needed are Tx and Rx.
 
 	Compile and upload the code to your Rx and Tx module.
 		- Set correct sketchbook location in arduino IDE: Should point to the folder containing the openLRSng.ino file.
@@ -66,11 +65,17 @@ USING THE SOFTWARE WITH MISSION PLANNER
 		- Tip: you can click on the 'link status' text close to the connect button to see current link quality and status.
 		
 	
-	Connection bug fix in ArduPlane software (ArduCopter works ok)
-		- see 'fix connection with lower bps telemetry, honour slowdown of telemetry': https://github.com/gitsly/ardupilot/commit/cfd2c77dda02ec308da6c0ace5077e38add9a75e
-
 	Connect your groundstation computer to the serial port of the Tx. Use this port when connecting in MissionPlanner (also rememeber to use correct baud rate when connecting).
 
+
+  Notes using with arducopter
+   ArduCopter works ok without modifications, altough you'll need to set SR0_ params with care. Setting them all to zero will work,
+   but will cause any MinimOsd connected to not recieve updates correctly. If you're using an OSD, you should adjust the values to
+   minimize telemetry packet loss yet still have OSD working (don't have a recipe for this at the moment).
+  
+  Notes for arduplane
+   Connection bug fix in ArduPlane software, to avoid having params being resent upon connection. Bug is noticable when receiving 'Already got param' during connection, but will cause no harm. 
+    - see 'fix connection with lower bps telemetry, honour slowdown of telemetry': https://github.com/gitsly/ardupilot/commit/cfd2c77dda02ec308da6c0ace5077e38add9a75e
 
 
 CONFIGURATOR UTILY / BINARY FIRMWARE NOTE:

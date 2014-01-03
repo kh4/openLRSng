@@ -107,10 +107,10 @@ ISR(TIMER1_OVF_vect)
 uint16_t RSSI2Bits(uint8_t rssi)
 {
   uint16_t ret = (uint16_t)rssi << 2;
-  if (ret<12) {
-    ret=12;
-  } else if (ret>1012) {
-    ret=1012;
+  if (ret < 12) {
+    ret = 12;
+  } else if (ret > 1012) {
+    ret = 1012;
   }
   return ret;
 }
@@ -130,6 +130,15 @@ void set_PPM_RSSI_output()
 
 void set_RSSI_output()
 {
+  uint8_t linkq = countSetBits(linkQuality & 0x7fff);
+  if (linkq == 15) {
+    // RSSI 0 - 255 mapped to 192 - ((255>>2)+192) == 192-255
+    compositeRSSI = (smoothRSSI >> 2) + 192;
+  } else {
+    // linkquality gives 0 to 14*13 == 182
+    compositeRSSI = linkq * 13;
+  }
+
   set_PPM_RSSI_output();
 
   if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
@@ -149,20 +158,20 @@ void failsafeSave(void)
   uint8_t ee_buf[20];
 
   for (int16_t i = 0; i < PPM_CHANNELS; i++) {
-    failsafePPM[i]=PPM[i];
+    failsafePPM[i] = PPM[i];
   }
 
   failsafeIsValid = 1;
 
   packChannels(6, failsafePPM, ee_buf);
   for (int16_t i = 0; i < 20; i++) {
-    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + 4 +i, ee_buf[i]);
+    myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + 4 + i, ee_buf[i]);
   }
 
-  ee_buf[0]=0xFA;
-  ee_buf[1]=0x11;
-  ee_buf[2]=0x5A;
-  ee_buf[3]=0xFE;
+  ee_buf[0] = 0xFA;
+  ee_buf[1] = 0x11;
+  ee_buf[2] = 0x5A;
+  ee_buf[3] = 0xFE;
   for (int16_t i = 0; i < 4; i++) {
     myEEPROMwrite(EEPROM_FAILSAFE_OFFSET + i, ee_buf[i]);
   }
@@ -170,8 +179,8 @@ void failsafeSave(void)
   // make this last at least 200ms for user to see it
   // needed as optimized eeprom code can be real fast if no changes are done
   start = millis() - start;
-  if (start<200) {
-    delay(200-start);
+  if (start < 200) {
+    delay(200 - start);
   }
 }
 
@@ -183,9 +192,9 @@ void failsafeLoad(void)
     ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + i);
   }
 
-  if ((ee_buf[0]==0xFA) && (ee_buf[1]==0x11) && (ee_buf[2]==0x5A) && (ee_buf[3]==0xFE)) {
+  if ((ee_buf[0] == 0xFA) && (ee_buf[1] == 0x11) && (ee_buf[2] == 0x5A) && (ee_buf[3] == 0xFE)) {
     for (int16_t i = 0; i < 20; i++) {
-      ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + 4 +i);
+      ee_buf[i] = EEPROM.read(EEPROM_FAILSAFE_OFFSET + 4 + i);
     }
     unpackChannels(6, failsafePPM, ee_buf);
     failsafeIsValid = 1;
@@ -198,9 +207,9 @@ void failsafeApply()
 {
   if (failsafeIsValid) {
     for (int16_t i = 0; i < PPM_CHANNELS; i++) {
-      if (i!=rx_config.RSSIpwm) {
+      if (i != rx_config.RSSIpwm) {
         cli();
-        PPM[i]=failsafePPM[i];
+        PPM[i] = failsafePPM[i];
         sei();
       }
     }
@@ -213,7 +222,7 @@ void setupOutputs()
 
   ppmChannels = getChannelCount(&bind_data);
   if (rx_config.RSSIpwm == ppmChannels) {
-    ppmChannels+=1;
+    ppmChannels += 1;
   }
 
   for (i = 0; i < OUTPUTS; i++) {
@@ -323,7 +332,7 @@ uint8_t bindReceive(uint32_t timeout)
       rxb = spiReadData();
       if (rxb == 'b') {
         for (uint8_t i = 0; i < sizeof(bind_data); i++) {
-          *(((uint8_t*)&bind_data) + i) = spiReadData();
+          *(((uint8_t*) &bind_data) + i) = spiReadData();
         }
 
         if (bind_data.version == BINDING_VERSION) {
@@ -344,22 +353,22 @@ uint8_t bindReceive(uint32_t timeout)
           rxInitDefaults(1);
           rxc_buf[0] = 'I';
         }
-        memcpy(rxc_buf+1, &rx_config, sizeof(rx_config));
-        tx_packet(rxc_buf,sizeof(rx_config)+1);
-      } else if (rxb=='t') {
-        uint8_t rxc_buf[sizeof(rxSpecialPins)+5];
+        memcpy(rxc_buf + 1, &rx_config, sizeof(rx_config));
+        tx_packet(rxc_buf, sizeof(rx_config) + 1);
+      } else if (rxb == 't') {
+        uint8_t rxc_buf[sizeof(rxSpecialPins) + 5];
         Serial.println(F("Sending RX type info"));
-        timeout=0;
-        rxc_buf[0]='T';
-        rxc_buf[1]=(version >> 8);
-        rxc_buf[2]=(version & 0xff);
-        rxc_buf[3]=OUTPUTS;
-        rxc_buf[4]=sizeof(rxSpecialPins)/sizeof(rxSpecialPins[0]);
-        memcpy(rxc_buf+5, &rxSpecialPins, sizeof(rxSpecialPins));
-        tx_packet(rxc_buf,sizeof(rxSpecialPins)+5);
-      } else if (rxb=='u') {
+        timeout = 0;
+        rxc_buf[0] = 'T';
+        rxc_buf[1] = (version >> 8);
+        rxc_buf[2] = (version & 0xff);
+        rxc_buf[3] = OUTPUTS;
+        rxc_buf[4] = sizeof(rxSpecialPins) / sizeof(rxSpecialPins[0]);
+        memcpy(rxc_buf + 5, &rxSpecialPins, sizeof(rxSpecialPins));
+        tx_packet(rxc_buf, sizeof(rxSpecialPins) + 5);
+      } else if (rxb == 'u') {
         for (uint8_t i = 0; i < sizeof(rx_config); i++) {
-          *(((uint8_t*)&rx_config) + i) = spiReadData();
+          *(((uint8_t*) &rx_config) + i) = spiReadData();
         }
         rxWriteEeprom();
         rxb = 'U';
@@ -430,7 +439,10 @@ void setup()
 
   rxReadEeprom();
   failsafeLoad();
-  Serial.println("OpenLRSng RX starting");
+  Serial.print("OpenLRSng RX starting ");
+  printVersion(version);
+  Serial.print(" on HW ");
+  Serial.println(BOARD_TYPE);
 
   setupRfmInterrupt();
 
@@ -472,7 +484,6 @@ void setup()
       // not reached
     } else {
       Serial.println("Looking for slave, not implemented yet");
-
     }
   }
 
@@ -509,7 +520,7 @@ void setup()
 //############ MAIN LOOP ##############
 void loop()
 {
-  uint32_t timeUs,timeMs;
+  uint32_t timeUs, timeMs;
 
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("RX hang");
@@ -603,27 +614,27 @@ void loop()
           tx_buf[1] = lastRSSIvalue;
 
           if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT])>>2;
+            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT]) >> 2;
 #ifdef ANALOG0_OUTPUT_ALT
           } else if (rx_config.pinMapping[ANALOG0_OUTPUT_ALT] == PINMAP_ANALOG) {
-            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT_ALT])>>2;
+            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT_ALT]) >> 2;
 #endif
           } else {
             tx_buf[2] = 0;
           }
 
           if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT])>>2;
+            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT]) >> 2;
 #ifdef ANALOG1_OUTPUT_ALT
           } else if (rx_config.pinMapping[ANALOG1_OUTPUT_ALT] == PINMAP_ANALOG) {
-            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT_ALT])>>2;
+            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT_ALT]) >> 2;
 #endif
           } else {
             tx_buf[3] = 0;
           }
           tx_buf[4] = (lastAFCCvalue >> 8);
           tx_buf[5] = lastAFCCvalue & 0xff;
-          tx_buf[6] = countSetBits(linkQuality&0xefff);
+          tx_buf[6] = countSetBits(linkQuality & 0x7fff);
         }
       }
 #else
@@ -666,8 +677,7 @@ void loop()
 
     if (RSSI_count > 8) {
       RSSI_sum /= RSSI_count;
-      smoothRSSI = (((uint16_t)smoothRSSI * 3 + (uint16_t)RSSI_sum * 1)/4);
-      compositeRSSI = (uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
+      smoothRSSI = (((uint16_t)smoothRSSI * 3 + (uint16_t)RSSI_sum * 1) / 4);
       set_RSSI_output();
       RSSI_sum = 0;
       RSSI_count = 0;
@@ -679,7 +689,7 @@ void loop()
       // we lost packet, hop to next channel
       linkQuality <<= 1;
       willhop = 1;
-      if (numberOfLostPackets==0) {
+      if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
         lastBeaconTimeMs = 0;
 		rxerrors++;
@@ -689,13 +699,11 @@ void loop()
       willhop = 1;
       Red_LED_ON;
       updateLBeep(true);
-      compositeRSSI=(uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
       set_RSSI_output();
     } else if ((numberOfLostPackets == hopcount) && ((timeUs - lastPacketTimeUs) > (getInterval(&bind_data) * hopcount))) {
       // hop slowly to allow resync with TX
       linkQuality = 0;
       willhop = 1;
-      compositeRSSI=(uint16_t)((smoothRSSI >> 2) + 192) * countSetBits(linkQuality & 0x7fff) / 15;
       set_RSSI_output();
       lastPacketTimeUs = timeUs;
     }

@@ -31,8 +31,6 @@ uint16_t linkQualityRX = 0;
 volatile uint8_t ppmAge = 0; // age of PPM data
 
 volatile uint8_t ppmCounter = PPM_CHANNELS; // ignore data until first sync pulse
-volatile uint8_t ppmDetecting = 1; // countter for microPPM detection
-volatile uint8_t ppmMicroPPM = 0;  // status flag for 'Futaba microPPM mode'
 
 #ifndef BZ_FREQ
 #define BZ_FREQ 2000
@@ -44,35 +42,17 @@ volatile uint8_t ppmMicroPPM = 0;  // status flag for 'Futaba microPPM mode'
 
 static inline void processPulse(uint16_t pulse)
 {
-  if (ppmDetecting) {
-    if (ppmDetecting > 50) {
-      ppmDetecting = 0;
-      if (ppmMicroPPM > 10) {
-        ppmMicroPPM = 1;
-      } else {
-        ppmMicroPPM = 0;
-      }
-      // Serial.println(ppmMicroPPM?"Futaba micro mode":"Normal PPM mode");
-    } else {
-      if (pulse < 1500) {
-        ppmMicroPPM++;
-      }
-      ppmDetecting++;
-    }
+  if (!(bind_data.flags & MICROPPM)) {
+    pulse >>= 1; // divide by 2 to get servo value on normal PPM
+  }
+
+  if (pulse > 2500) {      // Verify if this is the sync pulse (2.5ms)
+    ppmCounter = 0;             // -> restart the channel counter
+    ppmAge = 0;                 // brand new PPM data received
+  } else if ((pulse > 700) && (ppmCounter < PPM_CHANNELS)) { // extra channels will get ignored here
+    PPM[ppmCounter++] = servoUs2Bits(pulse);   // Store measured pulse length (converted)
   } else {
-
-    if (!ppmMicroPPM) {
-      pulse >>= 1; // divide by 2 to get servo value on normal PPM
-    }
-
-    if (pulse > 2500) {      // Verify if this is the sync pulse (2.5ms)
-      ppmCounter = 0;             // -> restart the channel counter
-      ppmAge = 0;                 // brand new PPM data received
-    } else if ((pulse > 700) && (ppmCounter < PPM_CHANNELS)) { // extra channels will get ignored here
-      PPM[ppmCounter++] = servoUs2Bits(pulse);   // Store measured pulse length (converted)
-    } else {
-      ppmCounter = PPM_CHANNELS; // glitch ignore rest of data
-    }
+    ppmCounter = PPM_CHANNELS; // glitch ignore rest of data
   }
 }
 
@@ -87,11 +67,13 @@ ISR(TIMER1_CAPT_vect)
 
 void setupPPMinput()
 {
-  ppmDetecting = 1;
-  ppmMicroPPM = 0;
-  // Setup timer1 for input capture (PSC=8 -> 0.5ms precision, falling edge)
+  // Setup timer1 for input capture (PSC=8 -> 0.5ms precision)
   TCCR1A = ((1 << WGM10) | (1 << WGM11));
-  TCCR1B = ((1 << WGM12) | (1 << WGM13) | (1 << CS11));
+  TCCR1B = ((1 << WGM12) | (1 << WGM13) | (1 << CS11) | (1 <<ICNC1));
+  // normally capture on rising edge, allow invertting via SW flag
+  if (!(bind_data.flags & INVERTED_PPMIN)) {
+    TCCR1B |= (1 << ICES1);
+  }
   OCR1A = 65535;
   TIMSK1 |= (1 << ICIE1);   // Enable timer1 input capture interrupt
 }
@@ -100,7 +82,7 @@ void setupPPMinput()
 ISR(PPM_Signal_Interrupt)
 {
   uint16_t pulseWidth;
-  if (!PPM_Signal_Edge_Check) {   // Falling edge detected
+  if ( (bind_data.flags & INVERTED_PPMIN) ^ PPM_Signal_Edge_Check) {
     pulseWidth = TCNT1; // read the timer1 value
     TCNT1 = 0; // reset the timer1 value for next
     processPulse(pulseWidth);
@@ -109,9 +91,7 @@ ISR(PPM_Signal_Interrupt)
 
 void setupPPMinput(void)
 {
-  ppmDetecting = 1;
-  ppmMicroPPM = 0;
-  // Setup timer1 for input capture (PSC=8 -> 0.5ms precision, top at 20ms)
+  // Setup timer1 for input capture (PSC=8 -> 0.5ms precision)
   TCCR1A = ((1 << WGM10) | (1 << WGM11));
   TCCR1B = ((1 << WGM12) | (1 << WGM13) | (1 << CS11));
   OCR1A = 65535;
@@ -198,7 +178,7 @@ void checkButton(void)
     // Check the button again, If it is still down reinitialize
     if (0 == digitalRead(BTN)) {
       int8_t bzstate = HIGH;
-      uint8_t doDefaults = 0;
+      uint8_t swapProfile = 0;
 
       buzzerOn(bzstate ? BZ_FREQ : 0);
       loop_time = millis();
@@ -206,7 +186,7 @@ void checkButton(void)
       while (0 == digitalRead(BTN)) {     // wait for button to release
         if (loop_time > time + 9800) {
           buzzerOn(BZ_FREQ);
-          doDefaults = 1;
+          swapProfile = 1;
         } else {
           if ((millis() - loop_time) > 200) {
             loop_time = millis();
@@ -217,10 +197,20 @@ void checkButton(void)
       }
 
       buzzerOff();
-      randomSeed(micros());   // button release time in us should give us enough seed
-      if (doDefaults) {
-        bindInitDefaults();
+      if (swapProfile) {
+        profileSwap((activeProfile + 1) % TX_PROFILE_COUNT);
+        Serial.print("New profile:");
+        Serial.println(activeProfile);
+        if (bindReadEeprom()) {
+          Serial.println("Loaded settings from EEPROM\n");
+        } else {
+          Serial.print("EEPROM data not valid, reiniting\n");
+          bindInitDefaults();
+          bindWriteEeprom();
+        }
+        return;
       }
+      randomSeed(micros()); // button release time in us should give us enough seed
       bindRandomize();
       bindWriteEeprom();
       bindPrint();
@@ -287,34 +277,29 @@ void setup(void)
 {
   uint32_t start;
   setupSPI();
-
 #ifdef SDN_pin
-  pinMode(SDN_pin, OUTPUT);  //SDN
+  pinMode(SDN_pin, OUTPUT); //SDN
   digitalWrite(SDN_pin, 0);
 #endif
-
   //LED and other interfaces
-  pinMode(Red_LED, OUTPUT);   //RED LED
-  pinMode(Green_LED, OUTPUT);   //GREEN LED
+  pinMode(Red_LED, OUTPUT); //RED LED
+  pinMode(Green_LED, OUTPUT); //GREEN LED
 #ifdef Red_LED2
-  pinMode(Red_LED2, OUTPUT);   //RED LED
-  pinMode(Green_LED2, OUTPUT);   //GREEN LED
+  pinMode(Red_LED2, OUTPUT); //RED LED
+  pinMode(Green_LED2, OUTPUT); //GREEN LED
 #endif
-
-  pinMode(BTN, INPUT);   //Buton
-
-  pinMode(PPM_IN, INPUT);   //PPM from TX
+  pinMode(BTN, INPUT); //Buton
+  pinMode(PPM_IN, INPUT); //PPM from TX
   digitalWrite(PPM_IN, HIGH); // enable pullup for TX:s with open collector output
-
 #if defined (RF_OUT_INDICATOR)
   pinMode(RF_OUT_INDICATOR, OUTPUT);
   digitalWrite(RF_OUT_INDICATOR, LOW);
 #endif
-
   buzzerInit();
 
   Serial.begin(115200, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
 
+  profileInit();
   if (bindReadEeprom()) {
     Serial.println("Loaded settings from EEPROM\n");
   } else {
@@ -328,9 +313,6 @@ void setup(void)
 
   setupRfmInterrupt();
 
-  init_rfm(0);
-  rfmSetChannel(RF_channel);
-
   sei();
 
   start = millis();
@@ -340,35 +322,59 @@ void setup(void)
   digitalWrite(BTN, HIGH);
   Red_LED_ON ;
 
-  Serial.println("OpenLRSng TX starting");
+  Serial.print("OpenLRSng TX starting ");
+  printVersion(version);
+  Serial.print(" on HW ");
+  Serial.println(BOARD_TYPE);
 
   delay(200);
   checkBND();
 
+  checkButton();
+
   // switch to userdefined baudrate here
   TelemetrySerial.begin(bind_data.serial_baudrate);
-  checkButton();
 
   Red_LED_OFF;
   buzzerOff();
+
+  setupPPMinput(); // need to do this to make sure ppm polarity is correct if profile was changed
+
+  init_rfm(0);
+  rfmSetChannel(RF_channel);
   rx_reset();
 
   serial_okToSend = 0;
 
-  if (bind_data.flags & TELEMETRY_FRSKY) {
-    frskyInit((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_SMARTPORT);
-  } else if (bind_data.flags & TELEMETRY_MASK) {
-	 Serial.begin(bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
+  delay(300);
+  buzzerOn(BZ_FREQ);
+  delay(100);
+  buzzerOff();
+  for (uint8_t i = 0; i < activeProfile; i++) {
+    delay(100);
+    buzzerOn(BZ_FREQ);
+    delay(100);
+    buzzerOff();
   }
 
-  while (Serial.available()) { // Flush serial rx buffer
-    Serial.read();
+  if (bind_data.flags & TELEMETRY_FRSKY) {
+    frskyInit((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_SMARTPORT);
+  }
+}
+
+uint8_t compositeRSSI(uint8_t rssi, uint8_t linkq)
+{
+  if (linkq >= 15) {
+    // RSSI 0 - 255 mapped to 192 - ((255>>2)+192) == 192-255
+    return (rssi >> 2) + 192;
+  } else {
+    // linkquality gives 0 to 14*13 == 182
+    return linkq * 13;
   }
 }
 
 void loop(void)
 {
-
   if (spiReadRegister(0x0C) == 0) {     // detect the locked module and reboot
     Serial.println("module locked?");
     Red_LED_ON;
@@ -384,9 +390,9 @@ void loop(void)
     if (!lastTelemetry) {
       lastTelemetry = 1; //fixup rare case of zero
     }
-    linkQuality|=1;
+    linkQuality |= 1;
     RF_Mode = Receive;
-    spiSendAddress(0x7f);   // Send the package read command
+    spiSendAddress(0x7f); // Send the package read command
     for (int16_t i = 0; i < bind_data.serial_downlink; i++) {
       rx_buf[i] = spiReadData();
     }
@@ -398,7 +404,7 @@ void loop(void)
       if ((rx_buf[0] & 0x38) == 0x38) {
         uint8_t i;
         // transparent serial data...
-        for (i = 0; i <= (rx_buf[0] & 7);) {
+        for (i = 0; i<= (rx_buf[0] & 7);) {
           i++;
           if (bind_data.flags & TELEMETRY_FRSKY) {
             frskyUserData(rx_buf[i]);
@@ -509,15 +515,12 @@ void loop(void)
             serial_okToSend = 4;  // resend
           }
         }
-
         cli(); // disable interrupts when copying servo positions, to avoid race on 2 byte variable
         packChannels(bind_data.flags & 7, PPM, tx_buf + 1);
         sei();
-
       }
-
       //Green LED will be on during transmission
-      Green_LED_ON ;
+      Green_LED_ON;
 
       // Send the data over RF
       rfmSetChannel(RF_channel);
@@ -533,7 +536,7 @@ void loop(void)
 
       // do not switch channel as we may receive telemetry on the old channel
       if (bind_data.flags & TELEMETRY_MASK) {
-        linkQuality<<=1;
+        linkQuality <<= 1;
         RF_Mode = Receive;
         rx_reset();
         // tell loop to sample downlink RSSI
@@ -542,31 +545,26 @@ void loop(void)
           sampleRSSI = 1;
         }
       }
-
     } else {
       if (ppmAge == 8) {
         Red_LED_ON
       }
-
       ppmAge = 9;
       // PPM data outdated - do not send packets
     }
-
   }
 
   if (bind_data.flags & TELEMETRY_FRSKY) {
     uint8_t linkQualityTX = countSetBits(linkQuality & 0xfffe);
 
-    uint8_t compRX = (uint16_t)((RSSI_rx >> 2) + 192) * linkQualityRX / 15;
-    uint8_t compTX = (uint16_t)((RSSI_tx >> 2) + 192) * linkQualityTX / 15;
+    uint8_t compRX = compositeRSSI(RSSI_rx, linkQualityRX);
+    uint8_t compTX = compositeRSSI(RSSI_tx, linkQualityTX);
 
-    frskyUpdate(RX_ain0, RX_ain1, compRX, compTX);
+    frskyUpdate(RX_ain0, RX_ain1, compRX, compTX, activeProfile);
     //frskyUpdate(RX_ain0,RX_ain1,lastTelemetry?RSSI_rx:0,lastTelemetry?RSSI_tx:0);
   }
-
   //Green LED will be OFF
   Green_LED_OFF;
 
   checkFS();
 }
-

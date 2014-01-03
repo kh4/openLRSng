@@ -40,6 +40,8 @@
 
 // NOTE: All settings are made via the CLI or configurator interface at runtime
 
+// To compile with Arduino select TX/RX and BOARD_TYPE setting as needed below
+
 //####### COMPILATION TARGET #######
 // Enable to compile transmitter code, default is RX
 #define COMPILE_TX
@@ -52,12 +54,17 @@
 // 4 = OpenLRSngTX / HawkEye UHF TX
 // 5 = OpenLRSngRX-4ch (DTF UHF) as TX
 // 6 = DTF UHF DeluxeTX (Atmega32u4)
-#define TX_BOARD_TYPE 3
+#ifdef COMPILE_TX
+	#define BOARD_TYPE 3
+#endif
 
 //####### RX BOARD TYPE #######
 // 3 = Flytron OpenLRS Rx v2 / OrangeRx UHF RX / HawkEye UHF RX
 // 5 = OpenLRSngRX-4ch (DTF UHF)
-#define RX_BOARD_TYPE 3
+#ifndef COMPILE_TX
+	#define BOARD_TYPE 3
+#endif
+
 #define REVERSE_PPM_RSSI_SERVO 1
 
 
