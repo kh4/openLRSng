@@ -2,8 +2,6 @@
  * OpenLRSng receiver code
  ****************************************************/
 
-#include <avr/eeprom.h>
-
 uint8_t RF_channel = 0;
 
 uint32_t lastPacketTimeUs = 0;
@@ -291,7 +289,7 @@ void setupOutputs()
   }
 }
 
-void updateLBeep(boolean packetLost)
+void updateLBeep(bool packetLost)
 {
   if (rx_config.pinMapping[LLIND_OUTPUT] == PINMAP_LLIND) {
     digitalWrite(LLIND_OUTPUT,packetLost);
