@@ -43,34 +43,33 @@
 // To compile with Arduino select TX/RX and BOARD_TYPE setting as needed below
 
 //####### COMPILATION TARGET #######
-// Enable to compile transmitter code, default is RX
-#define COMPILE_TX
+// Enable to compile transmitter code, default is RX (remove leading //)
+//#define COMPILE_TX
 
 //####### TX BOARD TYPE #######
-// 0 = Flytron OpenLRS M1 Tx Board (not verified)
-// 1 = Flytron OpenLRS M1 Rx Board as TX (not verified)
-// 2 = Flytron OpenLRS M2/M3 Tx Board / OrangeRx UHF TX
-// 3 = Flytron OpenLRS Rx v2 Board / OrangeRx UHF RX / HawkEye UHF RX workking as TX
-// 4 = OpenLRSngTX / HawkEye UHF TX
-// 5 = OpenLRSngRX-4ch (DTF UHF) as TX
-// 6 = DTF UHF DeluxeTX (Atmega32u4)
-#ifdef COMPILE_TX
-	#define BOARD_TYPE 3
-#endif
-
-//####### RX BOARD TYPE #######
-// 3 = Flytron OpenLRS Rx v2 / OrangeRx UHF RX / HawkEye UHF RX
-// 5 = OpenLRSngRX-4ch (DTF UHF)
-#ifndef COMPILE_TX
-	#define BOARD_TYPE 3
-#endif
-
-#define REVERSE_PPM_RSSI_SERVO 1
-
+// Enable one of the lines below (remove leading //)
+//#define BOARD_TYPE 0 // 0 = Flytron OpenLRS M1 Tx Board (not verified)
+//#define BOARD_TYPE 1 // 1 = Flytron OpenLRS M1 Rx Board as TX (not verified)
+//#define BOARD_TYPE 2 // 2 = Flytron OpenLRS M2/M3 Tx Board / OrangeRx UHF TX
+//#define BOARD_TYPE 3 // 3 = Flytron OpenLRS Rx v2 Board / OrangeRx UHF RX / HawkEye UHF RX (RX and TX supported)
+//#define BOARD_TYPE 4 // 4 = OpenLRSngTX / HawkEye UHF TX
+//#define BOARD_TYPE 5 // 5 = OpenLRSngRX-4/6ch (DTF UHF/HawkEye) (RX and TX supported)
+//#define BOARD_TYPE 6 // 6 = DTF UHF/HawkEye DeluxeTX (Atmega32u4)
 
 //### Module type selection (only for modified HW)
 //#define RFMXX_868
 //#define RFMXX_915
+
+//### Enabled Features (some features can be enabled / disabled with compile flag)
+#define CLI // Command-line interface
+#define CONFIGURATOR // Phoenix Serial Protocol (required for Configurator to work)
+
+//### DEBUG flags, may be dangerous
+//#define TEST_NO_ACK_BY_CH1 // disable sending of acks from RX by channel 1
+//#define TEST_HALT_RX_BY_CH2 // freeze RX
+//#define TEST_HALT_TX_BY_CH3 // freeze TX
+//#define SLAVE_STATISTICS // output master/slave stats on RX serial
+//#define DEBUG_DUMP_PPM // dump PPM data on serial (both TX/RX)
 
 
 //####### MAVLink #######
@@ -85,7 +84,6 @@
 #define SERIAL_TX_BUFFERSIZE 64
 #endif
 
-
 //####################
 //### CODE SECTION ###
 //####################
@@ -96,16 +94,15 @@
 #include <AP_Math.h>
 
 #include <Arduino.h>
-#include <EEPROM.h>
 
 #include "version.h"
 #include "hardware.h"
+#include "wd.h"
 #include "binding.h"
 #include "common.h"
 
 #include <mavlink.h>
 #include <mavlinkframedetector.h>
-
 
 #ifdef COMPILE_TX
 #include "binary_com.h"
@@ -113,5 +110,7 @@
 #include "frskytx.h"
 #include "TX.h"
 #else // COMPILE_RX
+#include "I2C.h"
+#include "serialPPM.h"
 #include "RX.h"
 #endif

@@ -8,7 +8,6 @@ void spiWriteRegister(uint8_t address, uint8_t data);
 void tx_packet(uint8_t* pkt, uint8_t size);
 void to_rx_mode(void);
 
-#define PPM_CHANNELS 16
 volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 , 512, 512, 512, 512, 512, 512, 512, 512 };
 
 const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
@@ -148,20 +147,6 @@ uint8_t countSetBits(uint16_t x)
   return (x * 0x0101) >> 8;
 }
 
-// Halt and blink failure code
-void fatalBlink(uint8_t blinks)
-{
-  while (1) {
-    for (uint8_t i = 0; i < blinks; i++) {
-      Red_LED_ON;
-      delay(100);
-      Red_LED_OFF;
-      delay(100);
-    }
-    delay(300);
-  }
-}
-
 // Spectrum analyser 'submode'
 void scannerMode(void)
 {
@@ -173,8 +158,6 @@ void scannerMode(void)
   uint8_t nextIndex = 0;
   uint8_t rssiMin = 0, rssiMax = 0;
   uint32_t rssiSum = 0;
-  Red_LED_OFF;
-  Green_LED_OFF;
   Serial.println("scanner mode");
   to_rx_mode();
 
@@ -189,6 +172,11 @@ void scannerMode(void)
         Serial.print(',');
         Serial.print(MAX_RFM_FREQUENCY);
         Serial.println(',');
+        break;
+
+      case 'S':
+        currentFrequency = startFreq;
+        currentSamples = 0;
         break;
 
       case '#':
@@ -208,8 +196,6 @@ void scannerMode(void)
           endFreq   = nextConfig[1] * 1000UL; // kHz -> Hz
           nrSamples = nextConfig[2]; // count
           stepSize  = nextConfig[3] * 1000UL;   // kHz -> Hz
-          currentFrequency = startFreq;
-          currentSamples = 0;
 
           // set IF filtter BW (kha)
           if (stepSize < 20000) {
@@ -281,8 +267,6 @@ void scannerMode(void)
       currentSamples = 0;
     }
   }
-
-  //never exit!!
 }
 
 #define NOP() __asm__ __volatile__("nop")
@@ -460,6 +444,13 @@ void rfmSetCarrierFrequency(uint32_t f)
 
 void init_rfm(uint8_t isbind)
 {
+#ifdef SDN_pin
+  digitalWrite(SDN_pin, 1);
+  delay(50);
+  digitalWrite(SDN_pin, 0);
+  delay(50);
+#endif
+
   ItStatus1 = spiReadRegister(0x03);   // read status, clear interrupt
   ItStatus2 = spiReadRegister(0x04);
   spiWriteRegister(0x06, 0x00);    // disable interrupts
@@ -651,22 +642,27 @@ void beacon_send(void)
   //octave 3:  392  440  349  175   261
 
   beacon_tone(392, 1);
+  watchdogReset();
 
   spiWriteRegister(0x6d, 0x05);   // 5 set mid power 25mW
   delay(10);
-  beacon_tone(440, 1);
+  beacon_tone(440,1);
+  watchdogReset();
 
   spiWriteRegister(0x6d, 0x04);   // 4 set mid power 13mW
   delay(10);
   beacon_tone(349, 1);
+  watchdogReset();
 
   spiWriteRegister(0x6d, 0x02);   // 2 set min power 3mW
   delay(10);
-  beacon_tone(175, 1);
+  beacon_tone(175,1);
+  watchdogReset();
 
   spiWriteRegister(0x6d, 0x00);   // 0 set min power 1.3mW
   delay(10);
   beacon_tone(261, 2);
+  watchdogReset();
 
 
   spiWriteRegister(0x07, RF22B_PWRSTATE_READY);

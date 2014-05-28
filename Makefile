@@ -17,8 +17,11 @@ ARDUINO_PATH=/usr/share/arduino
 # 4 - Hawkeye TX, OpenLRSng TX
 # 5 - DTF 4ch RX
 # 6 - Deluxe TX
+# 7 - PowerTowerRX
 #
 BOARD_TYPE=3
+BOARD_TYPES_TX=2 3 4 5 6 7
+BOARD_TYPES_RX=3 5 7
 
 #
 # You can compile all TX as TX, and all RX as either RX or TX.
@@ -64,8 +67,12 @@ endif
 #
 # AVR GCC info
 #
-EXEPATH=$(ARDUINO_PATH)/hardware/tools/avr/bin
 EXEPREFIX=avr-
+ifneq (,$(wildcard $(ARDUINO_PATH)/hardware/tools/avr/bin/avr-gcc))
+	EXEPATH=$(ARDUINO_PATH)/hardware/tools/avr/bin
+else ifneq (,$(wildcard /usr/bin/avr-gcc))
+	EXEPATH=/usr/bin
+endif
 
 #
 # AVR gcc and binutils
@@ -77,9 +84,24 @@ SIZE=$(EXEPATH)/$(EXEPREFIX)size
 OBJCOPY=$(EXEPATH)/$(EXEPREFIX)objcopy
 
 #
+# Shell commands
+#
+RM=rm
+MKDIR=mkdir
+LS=ls
+
+#
+# Styling
+#
+ASTYLE=astyle
+ASTYLEOPTIONS=--style=1tbs --indent=spaces=2 --suffix=none
+
+#
 # Compile flags
 #
-COPTFLAGS= -g -Os
+COPTFLAGS= -g -Os -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums \
+	   -fno-inline-small-functions -Wl,--relax -mcall-prologues
+
 CFLAGS=-Wall -ffunction-sections -fdata-sections -mmcu=$(CPU) -DF_CPU=$(CLOCK) -MMD \
 	-DUSB_VID=$(USB_VID) -DUSB_PID=$(USB_PID) -DARDUINO=105 -D__PROG_TYPES_COMPAT__ $(DEFINES)
 CXXFLAGS=-fno-exceptions
@@ -87,7 +109,7 @@ CXXFLAGS=-fno-exceptions
 #
 # Arduino libraries used, compilation settings.
 #
-ARDUINO_LIBS=EEPROM
+ARDUINO_LIBS=
 ARDUINO_LIB_PATH=$(ARDUINO_PATH)/libraries/
 ARDUINO_LIB_DIRS=$(addprefix $(ARDUINO_LIB_PATH),$(ARDUINO_LIBS))
 ARDUINO_LIB_INCL=$(addsuffix $(ARDUINO_LIBS),-I$(ARDUINO_LIB_PATH))
@@ -105,15 +127,15 @@ ARDUINO_VARIANT_PATH=$(ARDUINO_PATH)/hardware/arduino/variants/$(VARIANT)
 ARDUINO_CORELIB_PATH=$(ARDUINO_PATH)/hardware/arduino/cores/arduino/
 ARDUINO_CORELIB_SRCS=WInterrupts.c wiring.c wiring_shift.c wiring_digital.c \
 		     wiring_pulse.c wiring_analog.c \
-		     CDC.cpp Print.cpp HardwareSerial.cpp WString.cpp IPAddress.cpp \
-		     Stream.cpp main.cpp USBCore.cpp HID.cpp new.cpp Tone.cpp WMath.cpp
+		     CDC.cpp Print.cpp HardwareSerial.cpp WString.cpp \
+		     Stream.cpp main.cpp USBCore.cpp HID.cpp
 ARDUINO_CORELIB_OBJS= $(patsubst %.c, libraries/%.o, $(patsubst %.cpp, libraries/%.o, $(ARDUINO_CORELIB_SRCS)))
 
 
 #
 # Arduino stdc library files used, compilation settings.
 #
-ARDUINO_LIBC_PATH=/usr/share/arduino/hardware/arduino/cores/arduino/avr-libc/
+ARDUINO_LIBC_PATH=$(ARDUINO_PATH)/hardware/arduino/cores/arduino/avr-libc/
 ARDUINO_LIBC_SRCS=malloc.c realloc.c
 
 #
@@ -122,14 +144,20 @@ ARDUINO_LIBC_SRCS=malloc.c realloc.c
 INCLUDE=-I$(ARDUINO_CORELIB_PATH) -I$(ARDUINO_VARIANT_PATH) $(ARDUINO_LIB_INCL) -I.
 
 #
+# Project folders
+#
+LIBRARIES_FOLDER=libraries
+OUT_FOLDER=out
+
+#
 # Target object files
 #
-OBJS=openLRSng.o $(ARDUINO_LIB_OBJS) libraries/libcore.a
+OBJS=openLRSng.o $(ARDUINO_LIB_OBJS) $(LIBRARIES_FOLDER)/libcore.a
 
 #
 # Master target
 #
-all: openLRSng.hex
+all: mkdirs openLRSng.hex
 
 #
 # From here down are build rules
@@ -137,16 +165,16 @@ all: openLRSng.hex
 VPATH := $(ARDUINO_LIB_DIRS) $(ARDUINO_CORELIB_PATH) $(ARDUINO_LIBC_PATH)
 
 define ino-command
-	$(CXX) -c $(COPTFLAGS) $(CXXFLAGS) $(CFLAGS) $(INCLUDE) -o $@ -x c++ $<
+	@$(CXX) -c $(COPTFLAGS) $(CXXFLAGS) $(CFLAGS) $(INCLUDE) -o $@ -x c++ $<
 endef
 define cc-command
-	$(CC) -c $(COPTFLAGS) $(CFLAGS) $(INCLUDE) -o $@ $<
+	@$(CC) -c $(COPTFLAGS) $(CFLAGS) $(INCLUDE) -o $@ $<
 endef
 define cxx-command
-	$(CXX) -c $(COPTFLAGS) $(CXXFLAGS) $(CFLAGS) $(INCLUDE) -o $@ $<
+	@$(CXX) -c $(COPTFLAGS) $(CXXFLAGS) $(CFLAGS) $(INCLUDE) -o $@ $<
 endef
 
-.PHONY: all clean upload
+.PHONY: all clean upload astyle 433 868 915 allfw
 
 %.o: %.ino
 	$(ino-command)
@@ -157,27 +185,61 @@ endef
 %.o: %.cpp
 	$(cxx-command)
 
-libraries/%.o: %.c
-	$(cc-command)
+$(LIBRARIES_FOLDER)/%.o: %.c
+	$(cc-command) 2>/dev/null
 
-libraries/%.o: %.cpp
-	$(cxx-command)
+$(LIBRARIES_FOLDER)/%.o: %.cpp
+	$(cxx-command) 2>/dev/null
 
 #
 # Other targets
 #
-clean:
-	rm -f *.[aod] libraries/*.[aod] *.elf *.eep *.d *.hex
+clean: clean_compilation_products
+	@$(RM) -rf $(OUT_FOLDER)
+
+clean_compilation_products:
+	@$(RM) -rf $(LIBRARIES_FOLDER)
+	@$(RM) -f *.[aod] *.elf *.eep *.d *.hex
+
+mkdirs:
+	@$(MKDIR) -p $(LIBRARIES_FOLDER)
 
 openLRSng.hex: $(OBJS)
-	@$(CC) -Os -Wl,--gc-sections -mmcu=atmega328p -o openLRSng.elf $(OBJS) -Llibraries -lm 
+	@$(CC) -Os -Wl,--gc-sections -mmcu=$(CPU) -o openLRSng.elf $(OBJS) -L$(LIBRARIES_FOLDER) -lm
 	@$(OBJCOPY) -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load \
 		--no-change-warnings --change-section-lma .eeprom=0 \
-		openLRSng.elf openLRSng.eep 
-	@$(OBJCOPY) -O ihex -R .eeprom openLRSng.elf openLRSng.hex 
+		openLRSng.elf openLRSng.eep
+	@$(OBJCOPY) -O ihex -R .eeprom openLRSng.elf openLRSng.hex
 	@echo "NOTE: Deployment size is text + data."
 	@$(SIZE) openLRSng.elf
 
-libraries/libcore.a: $(ARDUINO_CORELIB_OBJS)
-	$(AR) rcs libraries/libcore.a $(ARDUINO_CORELIB_OBJS)
+$(LIBRARIES_FOLDER)/libcore.a: $(ARDUINO_CORELIB_OBJS)
+	@$(AR) rcs $(LIBRARIES_FOLDER)/libcore.a $(ARDUINO_CORELIB_OBJS)
+
+astyle:
+	$(ASTYLE) $(ASTYLEOPTIONS) openLRSng.ino *.h
+
+433:
+	$(RM) -rf $(OUT_FOLDER)/$@
+	$(MKDIR) -p $(OUT_FOLDER)/$@
+	$(foreach type, $(BOARD_TYPES_RX), make -s COMPILE_TX= BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-$(type).hex;)
+	$(foreach type, $(BOARD_TYPES_TX), make -s COMPILE_TX=1 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/TX-$(type).hex;)
+	$(LS) -l $(OUT_FOLDER)
+
+868:
+	$(RM) -rf $(OUT_FOLDER)/$@
+	$(MKDIR) -p $(OUT_FOLDER)/$@
+	$(foreach type, $(BOARD_TYPES_RX), make -s RFMXX_868=1 COMPILE_TX= BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-$(type).hex;)
+	$(foreach type, $(BOARD_TYPES_TX), make -s RFMXX_868=1 COMPILE_TX=1 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/TX-$(type).hex;)
+	$(LS) -l $(OUT_FOLDER)
+
+915:
+	$(RM) -rf $(OUT_FOLDER)/$@
+	$(MKDIR) -p $(OUT_FOLDER)/$@
+	$(foreach type, $(BOARD_TYPES_RX), make -s RFMXX_915=1 COMPILE_TX= BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-$(type).hex;)
+	$(foreach type, $(BOARD_TYPES_TX), make -s RFMXX_915=1 COMPILE_TX=1 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/TX-$(type).hex;)
+	$(LS) -l $(OUT_FOLDER)
+
+allfw: 433 868 915
+	$(LS) -lR $(OUT_FOLDER)
 

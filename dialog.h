@@ -9,7 +9,9 @@ char    CLI_buffer[EDIT_BUFFER_SIZE + 1];
 uint8_t CLI_buffer_position = 0;
 bool    CLI_magic_set = 0;
 
+#ifdef HEXGET
 const static char hexTab[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+#endif
 const static char *chConfStr[8] = { "N/A", "4+4", "8", "8+4", "12", "12+4", "16", "N/A" };
 
 #define RXC_MAX_SPECIAL_PINS 16
@@ -18,6 +20,7 @@ uint8_t rxcSpecialPinCount;
 uint8_t rxcNumberOfOutputs;
 uint16_t rxcVersion;
 
+#ifdef HEXGET
 void hexDump(void *in, uint16_t bytes)
 {
   uint16_t check = 0;
@@ -134,6 +137,12 @@ fail:
     Serial.read();
   }
 }
+#endif
+
+void printYesNo(uint8_t yes)
+{
+  Serial.println(yes?"Yes":"No");
+}
 
 void bindPrint(void)
 {
@@ -185,13 +194,13 @@ void bindPrint(void)
   Serial.println(bind_data.serial_baudrate);
 
   Serial.print(F("0) Mute buzzer (mostly):"));
-  Serial.println((bind_data.flags & MUTE_TX) ? "Yes" : "No");
+  printYesNo(tx_config.flags & MUTE_TX);
 
   Serial.print(F("A) Inverted PPM in     :"));
-  Serial.println((bind_data.flags & INVERTED_PPMIN) ? "Yes" : "No");
+  printYesNo(tx_config.flags & INVERTED_PPMIN);
 
   Serial.print(F("B) Micro (half) PPM    :"));
-  Serial.println((bind_data.flags & MICROPPM) ? "Yes" : "No");
+  printYesNo(tx_config.flags & MICROPPM);
 
   Serial.print(F("D) Telemetry packet size: "));
   Serial.println(bind_data.serial_downlink);
@@ -226,15 +235,20 @@ void rxPrint(void)
     Serial.println(F("OpenLRSngRX mini 4/6ch"));
   } else if (rx_config.rx_type == RX_DTFUHF10CH) {
     Serial.println(F("DTF UHF 32-bit 10ch"));
+  } else if (rx_config.rx_type == RX_PTOWER) {
+    Serial.println(F("PowerTower"));
   }
   for (i=0; i < rxcNumberOfOutputs; i++) {
     Serial.print((char)(((i + 1) > 9) ? (i + 'A' - 9) : (i + '1')));
     Serial.print(F(") port "));
     Serial.print(i + 1);
     Serial.print(F("function: "));
-    if (rx_config.pinMapping[i] < 16) {
+    if (rx_config.pinMapping[i] < 32) {
       Serial.print(F("PWM channel "));
-      Serial.println(rx_config.pinMapping[i] + 1);
+      if (rx_config.pinMapping[i] > 15) {
+        Serial.print("S");
+      }
+      Serial.println((rx_config.pinMapping[i] & 0x0f) + 1);
     } else {
       Serial.println(SPECIALSTR(rx_config.pinMapping[i]));
     }
@@ -266,11 +280,11 @@ void rxPrint(void)
   Serial.print(F("N) PPM output limited     : "));
   Serial.println((rx_config.flags & PPM_MAX_8CH) ? "8ch" : "N/A");
   Serial.print(F("O) Timed BIND at startup  : "));
-  Serial.println((rx_config.flags & ALWAYS_BIND) ? "Enabled" : "Disabled");
+  printYesNo(rx_config.flags & ALWAYS_BIND);
   Serial.print(F("P) Slave mode (experimental): "));
-  Serial.println((rx_config.flags & SLAVE_MODE) ? "Enabled" : "Disabled");
+  printYesNo(rx_config.flags & SLAVE_MODE);
   Serial.print(F("Q) Output before link (=FS) : "));
-  Serial.println((rx_config.flags & IMMEDIATE_OUTPUT) ? "Enabled" : "Disabled");
+  printYesNo(rx_config.flags & IMMEDIATE_OUTPUT);
 }
 
 void CLI_menu_headers(void)
@@ -350,7 +364,7 @@ void RX_menu_headers(void)
       Serial.print(F("Set output for port "));
       Serial.println(CLI_menu);
       Serial.print(F("Valid choices are: [1]-[16] (channel 1-16)"));
-      ch=20;
+      ch=40;
       for (uint8_t i = 0; i < rxcSpecialPinCount; i++) {
         if (rxcSpecialPins[i].output == CLI_menu - 1) {
           Serial.print(", [");
@@ -427,14 +441,22 @@ void handleRXmenu(char c)
   if (CLI_menu == -1) {
     switch (c) {
     case '!':
+#ifdef HEXGET
       hexDump(&rx_config, sizeof(rx_config));
+#else
+      Serial.println("NOT ENABLED");
+#endif
       break;
     case '\n':
     case '\r':
       RX_menu_headers();
       break;
     case '@':
+#ifdef HEXGET
       hexGet(&rx_config, sizeof(rx_config));
+#else
+      Serial.println("NOT ENABLED");
+#endif
       RX_menu_headers();
       break;
     case 's':
@@ -616,11 +638,11 @@ void handleRXmenu(char c)
           if (CLI_menu > rxcNumberOfOutputs) {
             break;
           }
-          if ((value > 0) && (value <= 16)) {
+          if ((value > 0) && (value <= 32)) {
             rx_config.pinMapping[CLI_menu - 1] = value - 1;
             valid_input = 1;
           } else {
-            ch = 20;
+            ch=40;
             for (uint8_t i = 0; i < rxcSpecialPinCount; i++) {
               if (rxcSpecialPins[i].output != (CLI_menu - 1)) {
                 continue;
@@ -806,20 +828,26 @@ void handleCLImenu(char c)
   if (CLI_menu == -1) {
     switch (c) {
     case '!':
+#ifdef HEXGET
       hexDump(&bind_data, sizeof(bind_data));
+#else
+      Serial.println("NOT ENABLED");
+#endif
       break;
     case '\n':
     case '\r':
-      CLI_menu_headers();
       break;
     case '@':
+#ifdef HEXGET
       hexGet(&bind_data, sizeof(bind_data));
-      CLI_menu_headers();
+#else
+      Serial.println("NOT ENABLED");
+#endif
       break;
     case 's':
     case 'S':
       // save settings to EEPROM
-      bindWriteEeprom();
+      txWriteEeprom();
       Serial.println("Settings saved to EEPROM\n");
       // leave CLI
       CLI_menu = -2;
@@ -828,7 +856,7 @@ void handleCLImenu(char c)
     case 'X':
     case 0x1b: //ESC
       // restore settings from EEPROM
-      bindReadEeprom();
+      txReadEeprom();
       Serial.println("Reverted settings from EEPROM\n");
       // leave CLI
       CLI_menu = -2;
@@ -837,22 +865,18 @@ void handleCLImenu(char c)
     case 'I':
       // restore factory settings
       bindInitDefaults();
+      txInitDefaults();
       Serial.println("Loaded factory defaults\n");
-
-      CLI_menu_headers();
       break;
     case 'r':
     case 'R':
       // randomize channels and key
       bindRandomize();
       Serial.println("Key and channels randomized\n");
-
-      CLI_menu_headers();
       break;
     case 'f':
     case 'F':
       showFrequencies();
-      //CLI_menu_headers();
       break;
     case '1':
     case '2':
@@ -862,7 +886,6 @@ void handleCLImenu(char c)
     case '6':
     case '7':
       CLI_menu = c - '0';
-      CLI_menu_headers();
       break;
     case '8':
       Serial.println(F("Toggled telemetry!"));
@@ -872,31 +895,26 @@ void handleCLImenu(char c)
         bind_data.flags |= newf;
       }
       CLI_menu = -1;
-      CLI_menu_headers();
       break;
     case '9':
       CLI_menu = 9;
-      CLI_menu_headers();
       break;
     case '0':
       Serial.println(F("Toggled TX muting!"));
-      bind_data.flags ^= MUTE_TX;
+      tx_config.flags ^= MUTE_TX;
       CLI_menu = -1;
-      CLI_menu_headers();
       break;
     case 'a':
     case 'A':
       Serial.println(F("Toggled inverted PPM!"));
-      bind_data.flags ^= INVERTED_PPMIN;
+      tx_config.flags ^= INVERTED_PPMIN;
       CLI_menu = -1;
-      CLI_menu_headers();
       break;
     case 'b':
     case 'B':
       Serial.println(F("Toggled microPPM"));
-      bind_data.flags ^= MICROPPM;
+      tx_config.flags ^= MICROPPM;
       CLI_menu = -1;
-      CLI_menu_headers();
       break;
     case 'd':
     case 'D':
@@ -907,8 +925,10 @@ void handleCLImenu(char c)
     case 'Z':
       CLI_RX_config();
       CLI_menu = -1;
-      CLI_menu_headers();
       break;
+    }
+    if (CLI_menu != -2) {
+      CLI_menu_headers();
     }
   } else { // we are inside the menu
     if (CLI_inline_edit(c)) {
@@ -971,7 +991,7 @@ void handleCLImenu(char c)
           }
           break;
         case 9:
-          if ((value >= 1200) && (value <= 115200)) {
+          if ((value >0) && (value <= 115200)) {
             bind_data.serial_baudrate = value;
             valid_input = 1;
           }
@@ -1025,7 +1045,7 @@ void binaryMode()
 
   while (binary_mode_active == true) { // LOCK user here until exit command is received
     if (Serial.available()) {
-      binary_com.read_packet();
+      PSP_read();
     }
   }
 }
