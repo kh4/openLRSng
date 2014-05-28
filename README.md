@@ -1,5 +1,9 @@
-
+openLRSng (Mavlink)
 ===========================================
+WARNING: v3.6.4 has not yet been tested at
+all due to time-contraints, just merged and compiled. Test on bench before flying!
+
+
 	This is a fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
 	The project is geared towards the ArduPilot platform.
 	This software enables you to use your openLRS hardware compatible RC receiver and transmitter as a telemetry module. The 3DR telemetry module becomes redundant.
