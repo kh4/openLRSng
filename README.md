@@ -1,7 +1,12 @@
 openLRSng (Mavlink)
 ===========================================
-WARNING: v3.6.4 has not yet been tested at
-all due to time-contraints, just merged and compiled. Test on bench before flying!
+WARNING: v3.6.4 has not yet been tested at all due to time-contraints,
+It does not yet compile on all hardware. (thanks for reporting issues)
+
+Also test on bench before flying!
+
+Latest stable version can be found here:
+https://github.com/gitsly/openLRSng/tree/mavlink
 
 
 	This is a fork of openLRSng code by kah (which in turn is based on thUndeadMod of openLRS).
