@@ -1,17 +1,5 @@
-# Explicitly declare text files you want to always be normalized and converted
-# to native line endings on checkout.
-*.c text
-*.h text
-*.md text
-*.txt text
-*.cpp text
-.c text
-.pl text
-*.mk text
-*.S text
-*.inc text
 # Declare files that will always have LF line endings on checkout.
-*.sln text eol=lf
+* text eol=lf
 
 # Denote all files that are truly binary and should not be modified.
 *.png binary
