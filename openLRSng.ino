@@ -71,9 +71,27 @@
 //#define SLAVE_STATISTICS // output master/slave stats on RX serial
 //#define DEBUG_DUMP_PPM // dump PPM data on serial (both TX/RX)
 
+
+//####### MAVLink #######
+#define MAVLINK_INJECT 1
+#define MAVLINK_INJECT_INTERVAL 100000
+
+#ifdef COMPILE_TX
+#define SERIAL_RX_BUFFERSIZE 128
+#define SERIAL_TX_BUFFERSIZE 64
+#else // COMPILE_RX
+#define SERIAL_RX_BUFFERSIZE 256
+#define SERIAL_TX_BUFFERSIZE 64
+#endif
+
 //####################
 //### CODE SECTION ###
 //####################
+
+#include <FastSerial.h>
+#include <BetterStream.h>
+#include <AP_Common.h>
+#include <AP_Math.h>
 
 #include <Arduino.h>
 
@@ -82,6 +100,9 @@
 #include "wd.h"
 #include "binding.h"
 #include "common.h"
+
+#include <mavlink.h>
+#include <mavlinkframedetector.h>
 
 #ifdef COMPILE_TX
 #include "binary_com.h"
