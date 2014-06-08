@@ -1,6 +1,13 @@
 /****************************************************
  * OpenLRSng receiver code
  ****************************************************/
+FastSerialPort0(Serial);
+
+#ifdef MAVLINK_INJECT
+uint32_t last_mavlinkInject_time = 0;
+MavlinkFrameDetector frameDetector;
+#endif
+uint16_t rxerrors = 0;
 
 #include <avr/eeprom.h>
 uint8_t RF_channel = 0;
@@ -8,6 +15,7 @@ uint8_t RF_channel = 0;
 uint32_t lastPacketTimeUs = 0;
 uint32_t lastRSSITimeUs = 0;
 uint32_t linkLossTimeMs;
+
 
 uint32_t lastBeaconTimeMs;
 
@@ -110,6 +118,19 @@ uint16_t RSSI2Bits(uint8_t rssi)
   return ret;
 }
 
+void set_PPM_RSSI_output()
+{
+	if (rx_config.RSSIpwm < 16) {
+		cli();
+#if REVERSE_PPM_RSSI_SERVO == 1
+		PPM[rx_config.RSSIpwm] = 1024 - RSSI2Bits(compositeRSSI);
+#else
+		PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
+#endif
+		sei();
+	}
+}
+
 void set_RSSI_output()
 {
   uint8_t linkq = countSetBits(linkQuality & 0x7fff);
@@ -120,11 +141,9 @@ void set_RSSI_output()
     // linkquality gives 0 to 14*13 == 182
     compositeRSSI = linkq * 13;
   }
-  if (rx_config.RSSIpwm < 16) {
-    cli();
-    PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
-    sei();
-  }
+
+  set_PPM_RSSI_output();
+
   if (rx_config.pinMapping[RSSI_OUTPUT] == PINMAP_RSSI) {
     if ((compositeRSSI == 0) || (compositeRSSI == 255)) {
       TCCR2A &= ~(1 << COM2B1); // disable RSSI PWM output
@@ -388,16 +407,11 @@ uint8_t rx_buf[21]; // RX buffer (uplink)
 // type 0x00 normal servo, 0x01 failsafe set
 // type 0x38..0x3f uplinkked serial data
 
-uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
+uint8_t tx_buf[64]; // TX buffer (downlink)(type plus 8 x data)
 // First byte is meta
 // MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
 // 0x00 link info [RSSI] [AFCC]*2 etc...
 // type 0x38-0x3f downlink serial data 1-8 bytes
-
-#define SERIAL_BUFSIZE 32
-uint8_t serial_buffer[SERIAL_BUFSIZE];
-uint8_t serial_head;
-uint8_t serial_tail;
 
 uint8_t hopcount;
 
@@ -519,7 +533,8 @@ void setup()
   pinMode(0, INPUT);   // Serial Rx
   pinMode(1, OUTPUT);  // Serial Tx
 
-  Serial.begin(115200);
+  Serial.begin(115200, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);   //Serial Transmission
+
   rxReadEeprom();
   failsafeLoad();
   Serial.print("OpenLRSng RX starting ");
@@ -592,7 +607,7 @@ void setup()
   rfmSetChannel(RF_channel);
 
   // Count hopchannels as we need it later
-  hopcount=0;
+  hopcount = 0;
   while ((hopcount < MAXHOPS) && (bind_data.hopchannel[hopcount] != 0)) {
     hopcount++;
   }
@@ -612,12 +627,13 @@ void setup()
     Serial.begin(100000);
     UCSR0C |= 1<<UPM01; // set even parity
   } else if ((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_FRSKY) {
-    Serial.begin(9600);
+    Serial.begin(9600, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
   } else {
+    
     if (bind_data.serial_baudrate < 10) {
-      Serial.begin(9600);
+      Serial.begin(9600, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
     } else {
-      Serial.begin(bind_data.serial_baudrate);
+      Serial.begin(bind_data.serial_baudrate, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
     }
   }
 
@@ -625,6 +641,7 @@ void setup()
     Serial.read();
   }
 
+  // MERGEVERIFY: Does this have any effect when using FastSerial.	
   if (rx_config.pinMapping[RXD_OUTPUT]!=PINMAP_RXD) {
     UCSR0B &= 0xEF; //disable serial RXD
   }
@@ -632,19 +649,9 @@ void setup()
     UCSR0B &= 0xF7; //disable serial TXD
   }
 
-  serial_head = 0;
-  serial_tail = 0;
   linkAcquired = 0;
   lastPacketTimeUs = micros();
 
-}
-
-void checkSerial()
-{
-  while (Serial.available() && (((serial_tail + 1) % SERIAL_BUFSIZE) != serial_head)) {
-    serial_buffer[serial_tail] = Serial.read();
-    serial_tail = (serial_tail + 1) % SERIAL_BUFSIZE;
-  }
 }
 
 void slaveHop()
@@ -696,8 +703,6 @@ void loop()
     init_rfm(0);
     to_rx_mode();
   }
-
-  checkSerial();
 
   timeUs = micros();
 
@@ -754,17 +759,8 @@ retry:
     if ((rx_buf[0] & 0x3e) == 0x00) {
       cli();
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
-#ifdef DEBUG_DUMP_PPM
-      for (uint8_t i = 0; i < 8; i++) {
-        Serial.print(PPM[i]);
-        Serial.print(',');
-      }
-      Serial.println();
-#endif
-      if (rx_config.RSSIpwm < 16) {
-        PPM[rx_config.RSSIpwm] = RSSI2Bits(compositeRSSI);
-      }
-      sei();
+      set_PPM_RSSI_output(); // Override PPM from TX with RSSI value.
+	  sei();
       if (rx_buf[0] & 0x01) {
         if (!fs_saved) {
           for (int16_t i = 0; i < PPM_CHANNELS; i++) {
@@ -783,11 +779,21 @@ retry:
           // We got new data... (not retransmission)
           uint8_t i;
           tx_buf[0] ^= 0x80; // signal that we got it
-          if (rx_config.pinMapping[TXD_OUTPUT] == PINMAP_TXD) {
-            for (i = 0; i <= (rx_buf[0] & 7);) {
-              i++;
-              Serial.write(rx_buf[i]);
-            }
+		  if (rx_config.pinMapping[TXD_OUTPUT] == PINMAP_TXD) {
+             for (i = 0; i <= (rx_buf[0] & 7);) {
+               i++;
+               const uint8_t ch = rx_buf[i];
+               Serial.write(ch);
+   #if MAVLINK_INJECT == 1
+               // Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
+               // Inject packet right after a completed packet
+               if (frameDetector.Parse(ch) && timeUs - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL) {
+                 // Inject Mavlink radio modem status package.
+                 MAVLink_report(&Serial, 0, compositeRSSI, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+                 last_mavlinkInject_time = timeUs;
+               }
+   #endif
+			}
           }
         }
       }
@@ -801,17 +807,17 @@ retry:
     disablePPM = 0;
 
     if (bind_data.flags & TELEMETRY_MASK) {
+#if MAVLINK_INJECT == 0
       if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
         // resend last message
       } else {
         tx_buf[0] &= 0xc0;
         tx_buf[0] ^= 0x40; // swap sequence as we have new data
-        if (serial_head != serial_tail) {
+        if (Serial.available()) {
           uint8_t bytes = 0;
-          while ((bytes < 8) && (serial_head != serial_tail)) {
+          while ((bytes < 8) && Serial.available()) {
             bytes++;
-            tx_buf[bytes] = serial_buffer[serial_head];
-            serial_head = (serial_head + 1) % SERIAL_BUFSIZE;
+            Serial.readBytes((char*)&tx_buf[bytes], 1);
           }
           tx_buf[0] |= (0x37 + bytes);
         } else {
@@ -850,9 +856,20 @@ retry:
         }
       }
 #else
-      tx_packet_async(tx_buf, 9);
+      if (!((tx_buf[0] ^ rx_buf[0]) & 0x40)) { // If not true, resend last message
+        tx_buf[0] &= 0xc0; // set 2 msb high
+        tx_buf[0] ^= 0x40; // swap sequence bit7 as we have new data
+        uint8_t bytes = 0;
+        while ((bytes < bind_data.serial_downlink - 1) && Serial.available()) {
+          bytes++;
+          Serial.readBytes((char*)&tx_buf[bytes], 1);
+        }
+        tx_buf[0] |= (0x3F & bytes);
+      }
+#endif
+      tx_packet_async(tx_buf, bind_data.serial_downlink);
       while(!tx_done()) {
-        checkSerial();
+        // DO stuff while transmitting.
       }
 #endif
 
@@ -901,6 +918,7 @@ retry:
       if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
         lastBeaconTimeMs = 0;
+		rxerrors++;
       }
       numberOfLostPackets++;
       lastPacketTimeUs += getInterval(&bind_data);

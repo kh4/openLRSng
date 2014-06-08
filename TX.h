@@ -1,6 +1,15 @@
 /****************************************************
  * OpenLRSng transmitter code
  ****************************************************/
+
+FastSerialPort0(Serial);
+
+#ifdef MAVLINK_INJECT
+uint32_t last_mavlinkInject_time = 0;
+MavlinkFrameDetector frameDetector;
+#endif
+uint16_t rxerrors = 0;
+
 uint8_t RF_channel = 0;
 
 uint8_t FSstate = 0; // 1 = waiting timer, 2 = send FS, 3 sent waiting btn release
@@ -225,7 +234,7 @@ void checkButton(void)
       int8_t bzstate = HIGH;
       uint8_t swapProfile = 0;
 
-      buzzerOn(bzstate?BZ_FREQ:0);
+      buzzerOn(bzstate ? BZ_FREQ : 0);
       loop_time = millis();
 
       while (0 == digitalRead(BTN)) {     // wait for button to release
@@ -301,13 +310,10 @@ static inline void checkFS(void)
 }
 
 uint8_t tx_buf[21];
-uint8_t rx_buf[9];
+uint8_t rx_buf[64];
 
-#define SERIAL_BUFSIZE 32
-uint8_t serial_buffer[SERIAL_BUFSIZE];
-uint8_t serial_resend[9];
-uint8_t serial_head;
-uint8_t serial_tail;
+
+uint8_t serial_resend[64];
 uint8_t serial_okToSend; // 2 if it is ok to send serial instead of servo
 
 void setup(void)
@@ -340,7 +346,7 @@ void setup(void)
 #ifdef __AVR_ATmega32U4__
   Serial.begin(0); // Suppress warning on overflow on Leonardo
 #else
-  Serial.begin(115200);
+  Serial.begin(115200, SERIAL_RX_BUFFERSIZE, SERIAL_TX_BUFFERSIZE);
 #endif
   profileInit();
   txReadEeprom();
@@ -358,10 +364,6 @@ void setup(void)
   buzzerOn(BZ_FREQ);
   digitalWrite(BTN, HIGH);
   Red_LED_ON ;
-
-  while (Serial.available()) {
-    Serial.read();
-  }
 
   Serial.print("OpenLRSng TX starting ");
   printVersion(version);
@@ -381,6 +383,7 @@ void setup(void)
   }
   checkButton();
 
+
   Red_LED_OFF;
   buzzerOff();
 
@@ -390,8 +393,6 @@ void setup(void)
   rfmSetChannel(RF_channel);
   rx_reset();
 
-  serial_head = 0;
-  serial_tail = 0;
   serial_okToSend = 0;
 
   for (uint8_t i = 0; i <= activeProfile; i++) {
@@ -403,8 +404,6 @@ void setup(void)
 
   if (bind_data.flags & TELEMETRY_FRSKY) {
     frskyInit((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_SMARTPORT);
-  } else if (bind_data.flags & TELEMETRY_MASK) {
-    // ?
   }
   watchdogConfig(WATCHDOG_2S);
 }
@@ -580,39 +579,38 @@ void loop(void)
     Red_LED_OFF;
   }
 
-  while (TelemetrySerial.available()) {
-    uint8_t ch = TelemetrySerial.read();
-    if (serialMode) {
-      processChannelsFromSerial(ch);
-    } else if (((serial_tail + 1) % SERIAL_BUFSIZE) != serial_head) {
-      serial_buffer[serial_tail] = ch;
-      serial_tail = (serial_tail + 1) % SERIAL_BUFSIZE;
-    }
-  }
-
 #ifdef __AVR_ATmega32U4__
   if (serialMode) {
     while (Serial.available()) {
       processChannelsFromSerial(Serial.read());
     }
   }
+#else
+  if (serialMode) {
+    while (TelemetrySerial.available()) {
+      processChannelsFromSerial(TelemetrySerial.read());
+    }
+  }
 #endif
 
   if (RF_Mode == Received) {
+    const uint32_t time = micros();
     // got telemetry packet
-    lastTelemetry = micros();
+    lastTelemetry = time;
     if (!lastTelemetry) {
       lastTelemetry = 1; //fixup rare case of zero
     }
     linkQuality |= 1;
     RF_Mode = Receive;
     spiSendAddress(0x7f); // Send the package read command
-    for (int16_t i = 0; i < 9; i++) {
+    for (int16_t i = 0; i < bind_data.serial_downlink; i++) {
       rx_buf[i] = spiReadData();
     }
 
     if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
       tx_buf[0] ^= 0x40; // swap sequence to ack
+
+#if MAVLINK_INJECT == 0
       if ((rx_buf[0] & 0x38) == 0x38) {
         uint8_t i;
         // transparent serial data...
@@ -636,6 +634,27 @@ void loop(void)
 #endif
         linkQualityRX = rx_buf[6];
       }
+#else
+      // transparent serial data...
+      const uint8_t serialByteCount = rx_buf[0] & 0x3F;
+      if (serialByteCount > 0) {
+        //char dbg[14];
+        //sprintf(dbg, "got: %d", serialByteCount);
+        //TelemetrySerial.println(dbg);
+
+        for (uint8_t i = 1; i <= serialByteCount; i++) {
+          // Check mavlink frames of incoming serial stream before injection of mavlink radio status packet.
+          // Inject packet right after a completed packet
+          const uint8_t ch = rx_buf[i];
+          TelemetrySerial.write(ch);
+          if (frameDetector.Parse(ch) && time - last_mavlinkInject_time > MAVLINK_INJECT_INTERVAL) {
+            // Inject Mavlink radio modem status package.
+            MAVLink_report(&TelemetrySerial, 0, RSSI_tx, rxerrors); // uint8_t RSSI_remote, uint16_t RSSI_local, uint16_t rxerrors)
+            last_mavlinkInject_time = time;
+          }
+        }
+      }
+#endif
     }
     if (serial_okToSend == 1) {
       serial_okToSend = 2;
@@ -661,7 +680,7 @@ void loop(void)
     while (PPM[2] > 1013);
 #endif
 
-    if (ppmAge < 8) {
+    if (1/*ppmAge < 8*/) {
       ppmAge++;
 
       if (lastTelemetry) {
@@ -670,6 +689,7 @@ void loop(void)
           if (!(tx_config.flags & MUTE_TX)) {
             buzzerOn(BZ_FREQ);
           }
+          rxerrors++;
           lastTelemetry = 0;
         } else {
           // telemetry link re-established
@@ -679,18 +699,19 @@ void loop(void)
 
       // Construct packet to be sent
       tx_buf[0] &= 0xc0; //preserve seq. bits
-      if ((serial_tail != serial_head) && (serial_okToSend == 2)) {
+      if (Serial.available() && (serial_okToSend == 2)) {
         tx_buf[0] ^= 0x80; // signal new data on line
         uint8_t bytes = 0;
         uint8_t maxbytes = 8;
         if (getPacketSize(&bind_data) < 9) {
           maxbytes = getPacketSize(&bind_data) - 1;
         }
-        while ((bytes < maxbytes) && (serial_head != serial_tail)) {
+        while ((bytes < maxbytes) && Serial.available()) {
           bytes++;
-          tx_buf[bytes] = serial_buffer[serial_head];
-          serial_resend[bytes] = serial_buffer[serial_head];
-          serial_head = (serial_head + 1) % SERIAL_BUFSIZE;
+          uint8_t readByte;
+          Serial.readBytes((char*)&readByte, 1);
+          tx_buf[bytes] = readByte;
+          serial_resend[bytes] = readByte;
         }
         tx_buf[0] |= (0x37 + bytes);
         serial_resend[0] = bytes;
