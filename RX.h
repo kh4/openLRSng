@@ -35,6 +35,7 @@ uint16_t failsafePPM[PPM_CHANNELS];
 
 uint8_t linkAcquired = 0;
 uint8_t numberOfLostPackets = 0;
+uint8_t linkDump = 0;
 
 volatile uint8_t slaveState = 0; // 0 - no slave, 1 - slave initializing, 2 - slave running, 3- errored
 uint32_t slaveFailedMs = 0;
@@ -43,6 +44,19 @@ bool willhop = 0, fs_saved = 0;
 
 pinMask_t chToMask[PPM_CHANNELS];
 pinMask_t clearMask;
+
+void dumpCSV(uint8_t state) {
+  Serial.print('@'); //record line identifier, for easy parsing later
+  Serial.print(millis());
+  Serial.print(':');
+  Serial.print(RF_channel+1); //current channel,1-hopcount
+  Serial.print(':');
+  Serial.print(lastRSSIvalue); //signal,0-255
+  Serial.print(':');
+  Serial.print(rfmGetRSSI()); //noise,0-255
+  Serial.print(':');
+  Serial.println(state); //0=pkt++,1=pkt--,2=desync/slow-hop
+}
 
 void outputUp(uint8_t no)
 {
@@ -645,6 +659,10 @@ void setup()
     }
   }
 
+  if (checkIfConnected(OUTPUT_PIN[1], OUTPUT_PIN[2])){
+    linkDump=1;
+  }
+  
   if ((rx_config.pinMapping[SDA_OUTPUT] == PINMAP_SDA) &&
       (rx_config.pinMapping[SCL_OUTPUT] == PINMAP_SCL)) {
     myI2C_init(1);
@@ -661,7 +679,7 @@ void setup()
     }
   }
 
-  Serial.print("Entering normal mode");
+  Serial.println("Entering normal mode");
 
   watchdogConfig(WATCHDOG_2S);
 
@@ -691,6 +709,8 @@ void setup()
     UCSR0C |= 1<<UPM01; // set even parity
   } else if ((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_FRSKY) {
     Serial.begin(9600);
+  } else if (linkDump) {
+	  Serial.begin(19200);
   } else {
     if (bind_data.serial_baudrate < 10) {
       Serial.begin(9600);
@@ -954,6 +974,9 @@ retry:
     willhop = 1;
 
     Green_LED_OFF;
+	
+	if(linkDump)
+	  dumpCSV(0);
   }
 
   timeUs = micros();
@@ -981,6 +1004,8 @@ retry:
       // we lost packet, hop to next channel
       linkQuality <<= 1;
       willhop = 1;
+      if(linkDump)
+        dumpCSV(1);	  
       if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
         nextBeaconTimeMs = 0;
@@ -998,6 +1023,8 @@ retry:
       smoothRSSI = 0;
       set_RSSI_output();
       lastPacketTimeUs = timeUs;
+      if(linkDump)
+        dumpCSV(2);	  
     }
 
     if (numberOfLostPackets) {
@@ -1005,7 +1032,11 @@ retry:
         failsafeActive = 1;
         failsafeApply();
         nextBeaconTimeMs = (timeMs + delayInMsLong(rx_config.beacon_deadtime)) | 1; //beacon activating...
-      }
+        if(linkDump) {
+          Serial.print("!");
+          Serial.println(millis());
+        }		
+	  }
       if (rx_config.pwmStopDelay && (!disablePWM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.pwmStopDelay))) {
         disablePWM = 1;
       }
