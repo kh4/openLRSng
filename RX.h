@@ -632,6 +632,11 @@ void setup()
     }
   }
 
+  if (checkIfConnected(OUTPUT_PIN[1], OUTPUT_PIN[2])){
+	 Serial.println("dumping CSV stats");
+    linkDump=1;
+  }
+  
   if (checkIfConnected(OUTPUT_PIN[0], OUTPUT_PIN[1]) || (!bindReadEeprom())) {
     Serial.print("EEPROM data not valid or bind jumpper set, forcing bind\n");
 
@@ -659,9 +664,6 @@ void setup()
     }
   }
 
-  if (checkIfConnected(OUTPUT_PIN[1], OUTPUT_PIN[2])){
-    linkDump=1;
-  }
   
   if ((rx_config.pinMapping[SDA_OUTPUT] == PINMAP_SDA) &&
       (rx_config.pinMapping[SCL_OUTPUT] == PINMAP_SCL)) {
