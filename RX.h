@@ -610,7 +610,7 @@ void setup()
   Serial.begin(115200);
   rxReadEeprom();
   failsafeLoad();
-  Serial.print("OpenLRSng RX starting ");
+  Serial.print("OpenLRSng RX (gitsly) ");
   printVersion(version);
   Serial.print(" on HW ");
   Serial.println(BOARD_TYPE);
@@ -629,7 +629,7 @@ void setup()
   }
 
   if (checkIfConnected(OUTPUT_PIN[0], OUTPUT_PIN[1]) || (!bindReadEeprom())) {
-    Serial.print("EEPROM data not valid or bind jumpper set, forcing bind\n");
+    Serial.print("EEPROM data not valid or bind jumper set, forcing bind\n");
 
     if (bindReceive(0)) {
       bindWriteEeprom();

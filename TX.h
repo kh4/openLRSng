@@ -379,7 +379,7 @@ void setup(void)
 
   Serial.flush();
 
-  Serial.print("OpenLRSng TX starting ");
+  Serial.print("OpenLRSng TX (gitsly) ");
   printVersion(version);
   Serial.print(" on HW ");
   Serial.println(BOARD_TYPE);

@@ -22,8 +22,8 @@
 //  2 -- 19200bps, medium range
 #define DEFAULT_DATARATE 2
 
-#define DEFAULT_BAUDRATE 115200
-#define DEFAULT_SERIAL_DOWNLINK 9 // Must be 9 unless using Mavlink telem. max = COM_BUF_MAXSIZE, 29 is good for APM @ datarate 2
+#define DEFAULT_BAUDRATE 57600
+#define DEFAULT_SERIAL_DOWNLINK 29 // Must be 9 unless using Mavlink telem. max = COM_BUF_MAXSIZE, 29 is good for APM @ datarate 2
 
 // TX_CONFIG flag masks
 #define ALT_POWER           0x08
@@ -53,7 +53,7 @@
 #define CHANNELS_12         0x04
 #define CHANNELS_12_4       0x05
 #define CHANNELS_16         0x06
-#define DEFAULT_FLAGS       (CHANNELS_8 | TELEMETRY_PASSTHRU)
+#define DEFAULT_FLAGS       (CHANNELS_8 | TELEMETRY_MAVLINK)
 
 
 // helper macro for European PMR channels
