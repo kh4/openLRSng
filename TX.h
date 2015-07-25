@@ -155,7 +155,6 @@ void bindMode(void)
   uint8_t  tx_buf[sizeof(bind_data) + 1];
   bool  sendBinds = 1;
 
-  TelemetrySerial.println("BindMode entered");
   init_rfm(1);
 
   Serial.flush();
@@ -425,7 +424,7 @@ void setup(void)
 
   delay(50);
 
-  //checkBND();
+  checkBND();
 
   if (bind_data.serial_baudrate && (bind_data.serial_baudrate < 5)) {
     serialMode = bind_data.serial_baudrate;
@@ -433,11 +432,7 @@ void setup(void)
   } else {
     // switch to userdefined baudrate here
     TelemetrySerial.begin(bind_data.serial_baudrate);
-    TelemetrySerial.println("Telemetry port setup");
   }
-
-	checkBND();
-
   checkButton();
 
   Red_LED_OFF;
@@ -800,8 +795,7 @@ void loop(void)
     while (PPM[2] > 1013);
 #endif
 
-    //if ((ppmAge < 8) || (!TX_CONFIG_GETMINCH())) {
-    if (1) {
+    if ((ppmAge < 8) || (!TX_CONFIG_GETMINCH())) {
       ppmAge++;
 
       if (lastTelemetry) {
@@ -830,7 +824,6 @@ void loop(void)
         while ((bytes < maxbytes) && TelemetrySerial.available() > 0) {
           bytes++;
           const uint8_t ch = (uint8_t)TelemetrySerial.read();
-
           tx_buf[bytes] = ch;
           serial_resend[bytes] = ch;
         }
