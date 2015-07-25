@@ -94,6 +94,11 @@ void PSP_protocol_head(uint8_t code, uint16_t length)
 
   PSP_serialize_uint8(code);
   PSP_serialize_uint16(length);
+
+
+	char buf[40];
+	sprintf(buf, "<-- code: %d, len: %d", code, length);
+	TelemetrySerial.println(buf);
 }
 
 void PSP_protocol_tail()
@@ -110,6 +115,10 @@ void PSP_ACK()
 
 void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t data_buffer[])
 {
+	char buf[40];
+	sprintf(buf, "--> code: %d, len: %d", code, payload_length_received);
+	TelemetrySerial.println(buf);
+
   switch (code) {
   case PSP_REQ_BIND_DATA:
     PSP_protocol_head(PSP_REQ_BIND_DATA, sizeof(bind_data));
@@ -476,6 +485,8 @@ void binaryMode()
 {
   // Just entered binary mode, flip the bool
   binary_mode_active = true;
+
+  TelemetrySerial.println("Entered Binary PSP mode");
 
   while (binary_mode_active == true) { // LOCK user here until exit command is received
     if (Serial.available()) {
