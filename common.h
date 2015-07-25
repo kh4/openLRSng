@@ -29,12 +29,12 @@ uint32_t getInterval(struct bind_data *bd)
   uint32_t ret;
   // Sending a x byte packet on bps y takes about (emperical)
   // usec = (x + 15) * 8200000 / baudrate
-#define BYTES_AT_BAUD_TO_USEC(bytes, bps) ((uint32_t)((bytes) + 15) * 8200000L / (uint32_t)(bps))
+#define BYTES_AT_BAUD_TO_USEC(bytes, bps, div) ((uint32_t)((bytes) + (div?20:15)) * 8200000L / (uint32_t)(bps))
 
-  ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(bd), modem_params[bd->modem_params].bps) + 2000);
+  ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(bd), modem_params[bd->modem_params].bps, bd->flags&DIVERSITY_ENABLED) + 2000);
 
   if (bd->flags & TELEMETRY_MASK) {
-    ret += (BYTES_AT_BAUD_TO_USEC(bd->serial_downlink, modem_params[bd->modem_params].bps) + 1000);
+    ret += (BYTES_AT_BAUD_TO_USEC(bd->serial_downlink, modem_params[bd->modem_params].bps, bd->flags&DIVERSITY_ENABLED) + 1000);
   }
 
   // round up to ms
@@ -470,7 +470,11 @@ void init_rfm(uint8_t isbind)
   spiWriteRegister(0x0b, 0x12);    // gpio0 TX State
   spiWriteRegister(0x0c, 0x15);    // gpio1 RX State
 #endif
-  spiWriteRegister(0x0d, 0xfd);    // gpio 2 micro-controller clk output
+#ifdef ANTENNA_DIVERSITY
+  spiWriteRegister(0x0d, (bind_data.flags & DIVERSITY_ENABLED)?0x17:0xfd); // gpio 2 ant. sw 1 if diversity on else VDD
+#else
+  spiWriteRegister(0x0d, 0xfd);    // gpio 2 VDD
+#endif
   spiWriteRegister(0x0e, 0x00);    // gpio    0, 1,2 NO OTHER FUNCTION.
 
   if (isbind) {
@@ -483,7 +487,7 @@ void init_rfm(uint8_t isbind)
   spiWriteRegister(0x30, 0x8c);    // enable packet handler, msb first, enable crc,
   spiWriteRegister(0x32, 0x0f);    // no broadcast, check header bytes 3,2,1,0
   spiWriteRegister(0x33, 0x42);    // 4 byte header, 2 byte synch, variable pkt size
-  spiWriteRegister(0x34, 0x0a);    // 10 nibbles (40 bit preamble)
+  spiWriteRegister(0x34, (bind_data.flags & DIVERSITY_ENABLED)?0x14:0x0a);    // 40 bit preamble, 80 with diversity
   spiWriteRegister(0x35, 0x2a);    // preath = 5 (20bits), rssioff = 2
   spiWriteRegister(0x36, 0x2d);    // synchronize word 3
   spiWriteRegister(0x37, 0xd4);    // synchronize word 2
@@ -529,12 +533,23 @@ void to_rx_mode(void)
   NOP();
 }
 
+static inline void clearFIFO()
+{
+  //clear FIFO, disable multipacket, enable diversity if needed
+#ifdef ANTENNA_DIVERSITY
+  spiWriteRegister(0x08, (bind_data.flags & DIVERSITY_ENABLED)?0x83:0x03);
+  spiWriteRegister(0x08, (bind_data.flags & DIVERSITY_ENABLED)?0x80:0x00);
+#else
+  spiWriteRegister(0x08, 0x03);
+  spiWriteRegister(0x08, 0x00);
+#endif
+}
+
 void rx_reset(void)
 {
   spiWriteRegister(0x07, RF22B_PWRSTATE_READY);
   spiWriteRegister(0x7e, 36);    // threshold for rx almost full, interrupt when 1 byte received
-  spiWriteRegister(0x08, 0x03);    //clear fifo disable multi packet
-  spiWriteRegister(0x08, 0x00);    // clear fifo, disable multi packet
+  clearFIFO();
   spiWriteRegister(0x07, RF22B_PWRSTATE_RX);   // to rx mode
   spiWriteRegister(0x05, RF22B_Rx_packet_received_interrupt);
   ItStatus1 = spiReadRegister(0x03);   //read the Interrupt Status1 register
@@ -576,14 +591,17 @@ void tx_packet(uint8_t* pkt, uint8_t size)
 
 uint8_t tx_done()
 {
-  if (RF_Mode != Transmit) {
+  if (RF_Mode == Transmitted) {
 #ifdef TX_TIMING
     Serial.print("TX took:");
     Serial.println(micros() - tx_start);
 #endif
+    RF_Mode = Available;
     return 1; // success
   }
-  if ((micros() - tx_start) > 100000) {
+  if ((RF_Mode == Transmit) && ((micros() - tx_start) > 100000)) {
+    spiWriteRegister(0x07, RF22B_PWRSTATE_READY);
+    RF_Mode = Available;
     return 2; // timeout
   }
   return 0;
@@ -605,6 +623,27 @@ void beacon_tone(int16_t hz, int16_t len) //duration is now in half seconds.
     SDI_off;
     delayMicroseconds(d);
   }
+}
+
+uint8_t beaconGetRSSI()
+{
+  uint16_t rssiSUM=0;
+  Green_LED_ON
+
+  rfmSetCarrierFrequency(rx_config.beacon_frequency);
+  spiWriteRegister(0x79, 0); // ch 0 to avoid offset
+  delay(1);
+  rssiSUM+=rfmGetRSSI();
+  delay(1);
+  rssiSUM+=rfmGetRSSI();
+  delay(1);
+  rssiSUM+=rfmGetRSSI();
+  delay(1);
+  rssiSUM+=rfmGetRSSI();
+
+  Green_LED_OFF
+
+  return rssiSUM>>2;
 }
 
 void beacon_send(bool static_tone)
@@ -693,4 +732,16 @@ void printVersion(uint16_t v)
   }
 }
 
-
+// Halt and blink failure code
+void fatalBlink(uint8_t blinks)
+{
+  while (1) {
+    for (uint8_t i=0; i < blinks; i++) {
+      Red_LED_ON;
+      delay(100);
+      Red_LED_OFF;
+      delay(100);
+    }
+    delay(300);
+  }
+}

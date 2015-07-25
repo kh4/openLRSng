@@ -14,7 +14,9 @@ uint32_t lastPacketTimeUs = 0;
 uint32_t lastRSSITimeUs = 0;
 uint32_t linkLossTimeMs;
 
-uint32_t lastBeaconTimeMs;
+uint32_t nextBeaconTimeMs;
+
+uint16_t beaconRSSIavg = 255;
 
 uint8_t  RSSI_count = 0;
 uint16_t RSSI_sum = 0;
@@ -195,20 +197,31 @@ void set_RSSI_output()
   }
 }
 
+static const uint16_t switchThresholds[3] = { 178, 500, 844 };
+void updateSwitches()
+{
+  uint8_t i;
+  for (i = 0; i < OUTPUTS; i++) {
+    uint8_t map = rx_config.pinMapping[i];
+    if ((map & 0xf0) == 0x10) { // 16-31
+      digitalWrite(OUTPUT_PIN[i], (PPM[map & 0x0f] > switchThresholds[i%3]) ? HIGH : LOW);
+    }
+  }
+}
+
 void failsafeApply()
 {
-  if (failsafePPM[0] != 0xffff) {
-    for (int16_t i = 0; i < PPM_CHANNELS; i++) {
-      if (i == (rx_config.RSSIpwm & 0x0f)) {
-        continue;
-      }
-      if ((i == (rx_config.RSSIpwm & 0x0f) + 1) && (rx_config.RSSIpwm > 47)) {
-        continue;
-      }
+  for (int16_t i = 0; i < PPM_CHANNELS; i++) {
+    if ((i == (rx_config.RSSIpwm & 0x0f)) ||
+        ((i == (rx_config.RSSIpwm & 0x0f) + 1) && (rx_config.RSSIpwm > 47))) {
+      continue;
+    }
+    if (failsafePPM[i] & 0xfff) {
       cli();
-      PPM[i] = failsafePPM[i];
+      PPM[i] = servoUs2Bits(failsafePPM[i] & 0xfff);
       sei();
     }
+    updateSwitches();
   }
 }
 
@@ -316,7 +329,7 @@ void setupOutputs()
   ppmCountter = 0;
   TIMSK1 |= (1 << TOIE1);
 
-  if ((rx_config.flags & IMMEDIATE_OUTPUT) && failsafePPM[0]!=0xffff) {
+  if ((rx_config.flags & IMMEDIATE_OUTPUT) && (failsafePPM[0] & 0xfff)) {
     failsafeApply();
     disablePPM=0;
     disablePWM=0;
@@ -338,18 +351,6 @@ void updateLBeep(bool packetLost)
     }
   }
 }
-
-static inline void updateSwitches()
-{
-  uint8_t i;
-  for (i = 0; i < OUTPUTS; i++) {
-    uint8_t map = rx_config.pinMapping[i];
-    if ((map & 0xf0) == 0x10) { // 16-31
-      digitalWrite(OUTPUT_PIN[i], (PPM[map & 0x0f] > 255) ? HIGH : LOW);
-    }
-  }
-}
-
 
 uint8_t bindReceive(uint32_t timeout)
 {
@@ -412,29 +413,24 @@ uint8_t bindReceive(uint32_t timeout)
         tx_packet(&rxb, 1); // ACK that we updated settings
       } else if (rxb == 'f') {
         uint8_t rxc_buf[33];
-        if (failsafePPM[0]!=0xffff) {
-          rxc_buf[0]='F';
-          for (uint8_t i = 0; i < 16; i++) {
-            uint16_t us = servoBits2Us(failsafePPM[i]);
-            rxc_buf[i * 2 + 1] = (us >> 8);
-            rxc_buf[i * 2 + 2] = (us & 0xff);
-          }
-        } else {
-          rxc_buf[0]='f';
+        rxc_buf[0]='F';
+        for (uint8_t i = 0; i < 16; i++) {
+          uint16_t us = failsafePPM[i];
+          rxc_buf[i * 2 + 1] = (us >> 8);
+          rxc_buf[i * 2 + 2] = (us & 0xff);
         }
         tx_packet(rxc_buf, 33);
       } else if (rxb == 'g') {
         for (uint8_t i = 0; i < 16 ; i++) {
-          uint16_t val;
-          val = (uint16_t)spiReadData() << 8;
-          val += spiReadData();
-          failsafePPM[i] = servoUs2Bits(val);
+          failsafePPM[i] = ((uint16_t)spiReadData() << 8) + spiReadData();
         }
         rxb = 'G';
         failsafeSave();
         tx_packet(&rxb, 1);
       } else if (rxb == 'G') {
-        failsafePPM[0] = 0xffff;
+        for (uint8_t i = 0; i < 16 ; i++) {
+          failsafePPM[i] = 0;
+        }
         failsafeSave();
         rxb = 'G';
         tx_packet(&rxb, 1);
@@ -844,6 +840,8 @@ retry:
     if ((rx_buf[0] & 0x3e) == 0x00) {
       cli();
       unpackChannels(bind_data.flags & 7, PPM, rx_buf + 1);
+      set_PPM_rssi();
+      sei();
 #ifdef DEBUG_DUMP_PPM
       for (uint8_t i = 0; i < 8; i++) {
         Serial.print(PPM[i]);
@@ -851,12 +849,12 @@ retry:
       }
       Serial.println();
 #endif
-      set_PPM_rssi();
-      sei();
       if (rx_buf[0] & 0x01) {
         if (!fs_saved) {
           for (int16_t i = 0; i < PPM_CHANNELS; i++) {
-            failsafePPM[i] = PPM[i];
+            if (!(failsafePPM[i] & 0x1000)) {
+              failsafePPM[i] = servoBits2Us(PPM[i]);
+            }
           }
           failsafeSave();
           fs_saved = 1;
@@ -896,6 +894,7 @@ retry:
     if (linkAcquired == 0) {
       linkAcquired = 1;
     }
+
     failsafeActive = 0;
     disablePWM = 0;
     disablePPM = 0;
@@ -970,9 +969,9 @@ retry:
         fatalBlink(3);
       }
 #endif
-
-      updateSwitches();
     }
+
+    updateSwitches();
 
     RF_Mode = Receive;
     rx_reset();
@@ -1009,8 +1008,8 @@ retry:
       willhop = 1;
       if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
-        lastBeaconTimeMs = 0;
-        rxerrors++;
+        nextBeaconTimeMs = 0;
+		rxerrors++;
       }
       numberOfLostPackets++;
       lastPacketTimeUs += getInterval(&bind_data);
@@ -1031,7 +1030,7 @@ retry:
       if (rx_config.failsafeDelay && (!failsafeActive) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.failsafeDelay))) {
         failsafeActive = 1;
         failsafeApply();
-        lastBeaconTimeMs = (timeMs + delayInMsLong(rx_config.beacon_deadtime)) | 1; //beacon activating...
+        nextBeaconTimeMs = (timeMs + delayInMsLong(rx_config.beacon_deadtime)) | 1; //beacon activating...
       }
       if (rx_config.pwmStopDelay && (!disablePWM) && ((timeMs - linkLossTimeMs) > delayInMs(rx_config.pwmStopDelay))) {
         disablePWM = 1;
@@ -1040,14 +1039,12 @@ retry:
         disablePPM = 1;
       }
 
-      if ((rx_config.beacon_frequency) && (lastBeaconTimeMs)) {
-        if (((timeMs - lastBeaconTimeMs) < 0x80000000) && // last beacon is future during deadtime
-            (timeMs - lastBeaconTimeMs) > (1000UL * rx_config.beacon_interval)) {
-          beacon_send((rx_config.flags & STATIC_BEACON));
-          init_rfm(0);   // go back to normal RX
-          rx_reset();
-          lastBeaconTimeMs = millis() | 1; // avoid 0 in time
-        }
+      if ((rx_config.beacon_frequency) && (nextBeaconTimeMs) &&
+          ((timeMs - nextBeaconTimeMs) < 0x80000000)) {
+        beacon_send((rx_config.flags & STATIC_BEACON));
+        init_rfm(0);   // go back to normal RX
+        rx_reset();
+        nextBeaconTimeMs = (millis() +  (1000UL * rx_config.beacon_interval)) | 1; // avoid 0 in time
       }
     }
   } else {
@@ -1074,6 +1071,18 @@ retry:
     if ((RF_channel == MAXHOPS) || (bind_data.hopchannel[RF_channel] == 0)) {
       RF_channel = 0;
     }
+
+    if ((rx_config.beacon_frequency) && (nextBeaconTimeMs)) {
+      // Listen for RSSI on beacon channel briefly for 'trigger'
+      uint8_t brssi = beaconGetRSSI();
+      if (brssi > ((beaconRSSIavg>>2) + 20)) {
+        nextBeaconTimeMs = millis() + 1000L;
+      }
+      beaconRSSIavg = (beaconRSSIavg * 3 + brssi * 4) >> 2;
+
+      rfmSetCarrierFrequency(bind_data.rf_frequency);
+    }
+
     rfmSetChannel(RF_channel);
     slaveHop();
     willhop = 0;

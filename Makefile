@@ -20,8 +20,8 @@ ARDUINO_PATH=/usr/share/arduino
 # 7 - PowerTowerRX
 #
 BOARD_TYPE=3
-BOARD_TYPES_TX=0 2 3 4 5 6 7 8
-BOARD_TYPES_RX=2 3 5 7 8
+BOARD_TYPES_TX=0 2 3 4 5 6 7 8 9
+BOARD_TYPES_RX=2 3 5 7 8 9
 
 #
 # You can compile all TX as TX, and all RX as either RX or TX.
@@ -94,7 +94,7 @@ CAT=cat
 # Styling
 #
 ASTYLE=astyle
-ASTYLEOPTIONS=--style=1tbs --indent=spaces=2 --suffix=none
+ASTYLEOPTIONS=--options=none --style=1tbs --indent=spaces=2 --suffix=none --lineend=linux
 
 #
 # Compile flags
@@ -226,6 +226,7 @@ astyle:
 	$(MKDIR) -p $(OUT_FOLDER)/$@
 	$(foreach type, $(BOARD_TYPES_RX), make -s RFMTYPE=$@ COMPILE_TX=0 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-$(type).hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/RX-$(type)-bl.hex;)
 	$(foreach type, $(BOARD_TYPES_TX), make -s RFMTYPE=$@ COMPILE_TX=1 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/TX-$(type).hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/TX-$(type)-bl.hex;)
+	make -s RFMTYPE=$@ COMPILE_TX=0 BOARD_TYPE=8 CLOCK=8000000 clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-8-8MHz.hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/RX-8-8MHz-bl.hex
 	$(LS) -l $(OUT_FOLDER)
 
 allfw: 433 868 915

@@ -56,6 +56,7 @@
 //#define BOARD_TYPE 4 // 4 = OpenLRSngTX / HawkEye UHF TX
 //#define BOARD_TYPE 5 // 5 = OpenLRSngRX-4/6ch (DTF UHF/HawkEye) (RX and TX supported)
 #define BOARD_TYPE 6 // 6 = DTF UHF/HawkEye DeluxeTX (Atmega32u4)
+//#define BOARD_TYPE 9 // 9 = BroversityRX
 
 //### Module type selection (default = 433, only needed for modified HW)
 //#define RFMTYPE 868
@@ -89,9 +90,9 @@
 #include <Arduino.h>
 
 #include "version.h"
+#include "binding.h"
 #include "hardware.h"
 #include "wd.h"
-#include "binding.h"
 #include "common.h"
 
 #if (COMPILE_TX == 1)
@@ -101,6 +102,7 @@
 #include "dialog.h"
 #endif
 #include "frskytx.h"
+#include "chpicker.h"
 #include "TX.h"
 #else
 #include "mavlink.h"

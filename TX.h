@@ -220,6 +220,33 @@ void bindMode(void)
   }
 }
 
+void setupProfile()
+{
+  profileInit();
+  if (activeProfile==TX_PROFILE_COUNT) {
+#if defined(TX_MODE2)
+    switch ((digitalRead(TX_MODE1)?1:0) | (digitalRead(TX_MODE2)?2:0)) {
+    case 2:
+      activeProfile = 0; // MODE1 grounded
+      break;
+    case 1:
+      activeProfile = 1; // MODE2 grounded
+      break;
+    case 3:
+      activeProfile = 2; // both high
+      break;
+    case 0:
+      activeProfile = 3; // both ground
+      break;
+    }
+#elif defined(TX_MODE1)
+    activeProfile = digitalRead(TX_MODE1) ? 0 : 1;
+#else
+    activeProfile = 0;
+#endif
+  }
+}
+
 void checkButton(void)
 {
   uint32_t time, loop_time;
@@ -260,11 +287,14 @@ void checkButton(void)
 
       buzzerOff();
       if (swapProfile) {
-        profileSwap((activeProfile + 1) % TX_PROFILE_COUNT);
+        setDefaultProfile((defaultProfile + 1) % (TX_PROFILE_COUNT+1));
+        setupProfile();
         txReadEeprom();
+        delay(500);
         return;
       }
-      bindRandomize();
+      bindRandomize(false);
+      chooseChannelsPerRSSI();
       txWriteEeprom();
     }
 just_bind:
@@ -345,7 +375,15 @@ void setup(void)
   pinMode(Red_LED2, OUTPUT); //RED LED
   pinMode(Green_LED2, OUTPUT); //GREEN LED
 #endif
-  pinMode(BTN, INPUT); //Buton
+  pinMode(BTN, INPUT); //Button
+#ifdef TX_MODE1
+  pinMode(TX_MODE1, INPUT);
+  digitalWrite(TX_MODE1, HIGH);
+#endif
+#ifdef TX_MODE2
+  pinMode(TX_MODE2, INPUT);
+  digitalWrite(TX_MODE2, HIGH);
+#endif
   pinMode(PPM_IN, INPUT); //PPM from TX
   digitalWrite(PPM_IN, HIGH); // enable pullup for TX:s with open collector output
 #if defined (RF_OUT_INDICATOR)
@@ -361,7 +399,7 @@ void setup(void)
   Serial.setBuffers(serial_rxbuffer, SERIAL_BUF_RX_SIZE, serial_txbuffer, SERIAL_BUF_TX_SIZE);
   Serial.begin(115200);
 #endif
-  profileInit();
+  setupProfile();
   txReadEeprom();
 
   setupPPMinput();
@@ -585,32 +623,68 @@ void processChannelsFromSerial(uint8_t c)
 
 uint16_t getChannel(uint8_t ch)
 {
+  uint16_t v=512;
   ch = tx_config.chmap[ch];
   if (ch < 16) {
-    uint16_t v;
     cli();  // disable interrupts when copying servo positions, to avoid race on 2 byte variable written by ISR
     v = PPM[ch];
     sei();
-    return v;
+  } else if ((ch > 0xf1) && (ch < 0xfd)) {
+    v = 12 + (ch - 0xf2) * 100;
   } else {
     switch (ch) {
 #ifdef TX_AIN0
 #ifdef TX_AIN_IS_DIGITAL
     case 16:
-      return digitalRead(TX_AIN0) ? 1012 : 12;
+      v = digitalRead(TX_AIN0) ? 1012 : 12;
+      break;
     case 17:
-      return digitalRead(TX_AIN1) ? 1012 : 12;
+      v = digitalRead(TX_AIN1) ? 1012 : 12;
+      break;
 #else
     case 16:
-      return analogRead(TX_AIN0);
+      v = analogRead(TX_AIN0);
+      break;
     case 17:
-      return analogRead(TX_AIN1);
+      v = analogRead(TX_AIN1);
+      break;
 #endif
 #endif
-    default:
-      return 512;
+    case 18: // mode switch
+#if defined(TX_MODE2)
+      switch ((digitalRead(TX_MODE1)?1:0) | (digitalRead(TX_MODE2)?2:0)) {
+      case 2:
+        v = 12;
+        break;
+      case 1:
+        v =  1012;
+        break;
+      case 3:
+        v =  345;
+        break;
+      case 0:
+        v = 678;
+        break;
+      }
+#elif defined(TX_MODE1)
+      v = (digitalRead(TX_MODE1) ? 12 : 1012);
+#endif
+      break;
+    case 0xf0:
+      v = 0;
+      break;
+    case 0xf1:
+      v = 6;
+      break;
+    case 0xfd:
+      v = 1018;
+      break;
+    case 0xfe:
+      v = 1023;
+      break;
     }
   }
+  return v;
 }
 
 void loop(void)
@@ -786,27 +860,41 @@ void loop(void)
           }
         }
         for (uint8_t i=0; i < 16; i++) {
-          PPMout[i] = getChannel(tx_config.chmap[i]);
+          PPMout[i] = getChannel(i);
         }
         packChannels(bind_data.flags & 7, PPMout, tx_buf + 1);
       }
       //Green LED will be on during transmission
       Green_LED_ON;
 
-      // Send the data over RF
-      if (altPwrIndex && bind_data.rf_power) {
-        if (altPwrCount++ == altPwrIndex) {
+      {
+        uint8_t power = bind_data.rf_power;
+        if (altPwrIndex && power && (altPwrCount++ == altPwrIndex)) {
           altPwrCount=0;
-          rfmSetPower(bind_data.rf_power-1);
-        } else {
-          rfmSetPower(bind_data.rf_power);
+          power--;
         }
+#ifdef TX_MODE1
+        if (tx_config.flags & SW_POWER) {
+          if (!digitalRead(TX_MODE1)) {
+            Red_LED_ON;
+            power=7;
+          }
+        }
+#endif
+        rfmSetPower(power);
       }
 
+      // Send the data over RF
       rfmSetChannel(RF_channel);
-
       tx_packet_async(tx_buf, getPacketSize(&bind_data));
 
+#ifdef TX_MODE1
+      if (tx_config.flags & SW_POWER) {
+        if (!digitalRead(TX_MODE1)) {
+          Red_LED_OFF;
+        }
+      }
+#endif
       //Hop to the next frequency
       RF_channel++;
 
@@ -816,21 +904,23 @@ void loop(void)
 
     } else {
       if (ppmAge == 8) {
-        Red_LED_ON
+        Red_LED_ON;
       }
       ppmAge = 9;
       // PPM data outdated - do not send packets
     }
   }
 
-  if ((bind_data.flags & TELEMETRY_MASK) && (RF_Mode == Transmitted)) {
-    linkQuality <<= 1;
-    RF_Mode = Receive;
-    rx_reset();
-    // tell loop to sample downlink RSSI
-    sampleRSSI = micros();
-    if (sampleRSSI == 0) {
-      sampleRSSI = 1;
+  if (tx_done() == 1) {
+    if (bind_data.flags & TELEMETRY_MASK) {
+      linkQuality <<= 1;
+      RF_Mode = Receive;
+      rx_reset();
+      // tell loop to sample downlink RSSI
+      sampleRSSI = micros();
+      if (sampleRSSI == 0) {
+        sampleRSSI = 1;
+      }
     }
   }
 
