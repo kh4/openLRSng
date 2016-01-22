@@ -11,3 +11,12 @@
 *.hex
 libraries/*
 out
+gvim
+ipch/
+openLRSng.opensdf
+openLRSng.sdf
+openLRSng.sln
+openLRSng.suo
+openLRSng.vcxproj
+openLRSng.vcxproj.filters
+openLRSng.vcxproj.user

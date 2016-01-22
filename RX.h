@@ -2,6 +2,11 @@
  * OpenLRSng receiver code
  ****************************************************/
 
+uint32_t mavlink_last_inject_time = 0;
+MavlinkFrameDetector mavlinkIncomingFrame; // Track the incoming mavlink frames (from Tx)
+
+uint16_t rxerrors = 0;
+
 #include <avr/eeprom.h>
 uint8_t RF_channel = 0;
 
@@ -466,16 +471,16 @@ uint8_t rx_buf[21]; // RX buffer (uplink)
 // type 0x00 normal servo, 0x01 failsafe set
 // type 0x38..0x3f uplinkked serial data
 
-uint8_t tx_buf[9]; // TX buffer (downlink)(type plus 8 x data)
+uint8_t tx_buf[COM_BUF_MAXSIZE]; // TX buffer (downlink)(1 byte reserved for transmit flags and data length)
 // First byte is meta
 // MSB..LSB [1 bit uplink seq] [1bit downlink seqno] [6b telemtype]
 // 0x00 link info [RSSI] [AFCC]*2 etc...
-// type 0x38-0x3f downlink serial data 1-8 bytes
+// type 0x38-0x3f downlink serial data 1-COM_BUF_MAXSIZE bytes
 
-#define SERIAL_BUFSIZE 32
-uint8_t serial_buffer[SERIAL_BUFSIZE];
-uint8_t serial_head;
-uint8_t serial_tail;
+#define SERIAL_BUF_RX_SIZE 256
+#define SERIAL_BUF_TX_SIZE 64
+uint8_t serial_rxbuffer[SERIAL_BUF_RX_SIZE];
+uint8_t serial_txbuffer[SERIAL_BUF_TX_SIZE];
 
 uint8_t hopcount;
 
@@ -597,10 +602,11 @@ void setup()
   pinMode(0, INPUT);   // Serial Rx
   pinMode(1, OUTPUT);  // Serial Tx
 
+  Serial.setBuffers(serial_rxbuffer, SERIAL_BUF_RX_SIZE, serial_txbuffer, SERIAL_BUF_TX_SIZE);
   Serial.begin(115200);
   rxReadEeprom();
   failsafeLoad();
-  Serial.print("OpenLRSng RX starting ");
+  Serial.print("OpenLRSng RX (gitsly) ");
   printVersion(version);
   Serial.print(" on HW ");
   Serial.println(BOARD_TYPE);
@@ -619,7 +625,7 @@ void setup()
   }
 
   if (checkIfConnected(OUTPUT_PIN[0], OUTPUT_PIN[1]) || (!bindReadEeprom())) {
-    Serial.print("EEPROM data not valid or bind jumpper set, forcing bind\n");
+    Serial.print("EEPROM data not valid or bind jumper set, forcing bind\n");
 
     if (bindReceive(0)) {
       bindWriteEeprom();
@@ -699,9 +705,7 @@ void setup()
     }
   }
 
-  while (Serial.available()) {
-    Serial.read();
-  }
+  Serial.flush();
 
   if (rx_config.pinMapping[RXD_OUTPUT]!=PINMAP_RXD) {
     UCSR0B &= 0xEF; //disable serial RXD
@@ -713,19 +717,10 @@ void setup()
     UCSR0B &= 0xF7; //disable serial TXD
   }
 
-  serial_head = 0;
-  serial_tail = 0;
   linkAcquired = 0;
   lastPacketTimeUs = micros();
 
-}
-
-void checkSerial()
-{
-  while (Serial.available() && (((serial_tail + 1) % SERIAL_BUFSIZE) != serial_head)) {
-    serial_buffer[serial_tail] = Serial.read();
-    serial_tail = (serial_tail + 1) % SERIAL_BUFSIZE;
-  }
+  mavlinkIncomingFrame.Reset();
 }
 
 void slaveHop()
@@ -778,8 +773,6 @@ void loop()
     to_rx_mode();
   }
 
-  checkSerial();
-
   timeUs = micros();
 
   uint8_t slaveReceived = 0;
@@ -820,6 +813,17 @@ retry:
     Red_LED_OFF;
 
     updateLBeep(false);
+
+    if ((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_MAVLINK
+        && mavlinkIncomingFrame.IsIdle()
+        && timeUs - mavlink_last_inject_time > MAVLINK_INJECT_INTERVAL) {
+
+      const uint8_t space = serial_space(Serial.available(), SERIAL_BUF_RX_SIZE);
+      MAVLink_report(space, 0, smoothRSSI, rxerrors);
+      mavlink_last_inject_time = timeUs;
+    }
+
+
 
 #ifdef SLAVE_STATISTICS
     if (5 == readSlaveState()) {
@@ -865,10 +869,22 @@ retry:
           // We got new data... (not retransmission)
           uint8_t i;
           tx_buf[0] ^= 0x80; // signal that we got it
+
           if (rx_config.pinMapping[TXD_OUTPUT] == PINMAP_TXD) {
-            for (i = 0; i <= (rx_buf[0] & 7);) {
-              i++;
-              Serial.write(rx_buf[i]);
+
+            if ((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_MAVLINK) {
+
+              for (i = 0; i <= (rx_buf[0] & 7);) {
+                i++;
+                const uint8_t ch = rx_buf[i];
+                Serial.write(ch);
+                mavlinkIncomingFrame.Parse(ch);
+              }
+            } else {
+              for (i = 0; i <= (rx_buf[0] & 7);) {
+                i++;
+                Serial.write(rx_buf[i]);
+              }
             }
           }
         }
@@ -889,53 +905,62 @@ retry:
       } else {
         tx_buf[0] &= 0xc0;
         tx_buf[0] ^= 0x40; // swap sequence as we have new data
-        if (serial_head != serial_tail) {
+
+        if((bind_data.flags & TELEMETRY_MASK) == TELEMETRY_MAVLINK) {
           uint8_t bytes = 0;
-          while ((bytes < 8) && (serial_head != serial_tail)) {
+          while ((bytes < bind_data.serial_downlink - 1) && Serial.available() > 0) {
             bytes++;
-            tx_buf[bytes] = serial_buffer[serial_head];
-            serial_head = (serial_head + 1) % SERIAL_BUFSIZE;
+            const uint8_t ch = Serial.read();
+            tx_buf[bytes] = ch;
           }
-          tx_buf[0] |= (0x37 + bytes);
+          tx_buf[0] |= (0x3F & bytes);
         } else {
-          // tx_buf[0] lowest 6 bits left at 0
-          tx_buf[1] = lastRSSIvalue;
+          if (Serial.available() > 0) {
+            uint8_t bytes = 0;
+            while ((bytes < bind_data.serial_downlink - 1) && Serial.available() > 0) {
+              bytes++;
+              tx_buf[bytes] = Serial.read();
+            }
+            tx_buf[0] |= (0x37 & bytes);
+          } else {
+            // tx_buf[0] lowest 6 bits left at 0
+            tx_buf[1] = lastRSSIvalue;
 
-          if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT]) >> 2;
+            if (rx_config.pinMapping[ANALOG0_OUTPUT] == PINMAP_ANALOG) {
+              tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT]) >> 2;
 #ifdef ANALOG0_OUTPUT_ALT
-          } else if (rx_config.pinMapping[ANALOG0_OUTPUT_ALT] == PINMAP_ANALOG) {
-            tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT_ALT]) >> 2;
+            } else if (rx_config.pinMapping[ANALOG0_OUTPUT_ALT] == PINMAP_ANALOG) {
+              tx_buf[2] = analogRead(OUTPUT_PIN[ANALOG0_OUTPUT_ALT]) >> 2;
 #endif
-          } else {
-            tx_buf[2] = 0;
-          }
+            } else {
+              tx_buf[2] = 0;
+            }
 
-          if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
-            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT]) >> 2;
+            if (rx_config.pinMapping[ANALOG1_OUTPUT] == PINMAP_ANALOG) {
+              tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT]) >> 2;
 #ifdef ANALOG1_OUTPUT_ALT
-          } else if (rx_config.pinMapping[ANALOG1_OUTPUT_ALT] == PINMAP_ANALOG) {
-            tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT_ALT]) >> 2;
+            } else if (rx_config.pinMapping[ANALOG1_OUTPUT_ALT] == PINMAP_ANALOG) {
+              tx_buf[3] = analogRead(OUTPUT_PIN[ANALOG1_OUTPUT_ALT]) >> 2;
 #endif
-          } else {
-            tx_buf[3] = 0;
-          }
-          tx_buf[4] = (lastAFCCvalue >> 8);
-          tx_buf[5] = lastAFCCvalue & 0xff;
-          tx_buf[6] = countSetBits(linkQuality & 0x7fff);
+            } else {
+              tx_buf[3] = 0;
+            }
+            tx_buf[4] = (lastAFCCvalue >> 8);
+            tx_buf[5] = lastAFCCvalue & 0xff;
+            tx_buf[6] = countSetBits(linkQuality & 0x7fff);
+          } // else (no serial data available, send misc stuff).
         }
       }
 #ifdef TEST_NO_ACK_BY_CH1
       if (PPM[0]<900) {
-        tx_packet_async(tx_buf, 9);
+        tx_packet_async(tx_buf, bind_data.serial_downlink);
         while(!tx_done()) {
-          checkSerial();
         }
       }
 #else
-      tx_packet_async(tx_buf, 9);
+      tx_packet_async(tx_buf, bind_data.serial_downlink);
+
       while(!tx_done()) {
-        checkSerial();
       }
 #endif
 
@@ -984,6 +1009,7 @@ retry:
       if (numberOfLostPackets == 0) {
         linkLossTimeMs = timeMs;
         nextBeaconTimeMs = 0;
+		rxerrors++;
       }
       numberOfLostPackets++;
       lastPacketTimeUs += getInterval(&bind_data);

@@ -1,19 +1,19 @@
-openLRSng
+openLRSng (Mavlink)
 =========
 
-My fork of openLRS code (based on thUndeadMod of openLRS)
+My fork of openLRSng code (based on thUndeadMod of openLRS)
 
 More information at http://openlrsng.org
 
 CONFIGURATOR UTILITY / BINARY FIRMWARE NOTE:
 ============================================
-  This software should be used in source form only by expert users, for normal use 'binary' firmwares can be uploaded and configured by free configuration software available for Windows/Mac/Linux from Chrome web store.
-
-  http://goo.gl/iX7dJx
+  This software should be used in source form only by expert users, for normal use 'binary' firmwares can be easy uploaded and configured by free configuration software available for Windows/Mac/Linux from Chrome web store.
+  
+  Gitsly fork Configurator: https://github.com/gitsly/openLRSng-configurator (Download, dezip and add in Chrome)
 
   Binary firmware images are also available from
+  https://github.com/gitsly/openLRSng-configurator/tree/master/firmware
 
-  https://github.com/openLRSng/openlrsng.github.com/tree/master/binaries
 
 TRANSMITTER HW:
 ===============
