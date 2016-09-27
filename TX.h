@@ -12,6 +12,7 @@ uint32_t FStime = 0;  // time when button went down...
 uint32_t lastSent = 0;
 
 uint32_t lastTelemetry = 0;
+uint32_t lastSerialPPM = 0;
 
 uint8_t RSSI_rx = 0;
 uint8_t RSSI_tx = 0;
@@ -528,13 +529,13 @@ static inline void processSpektrum(uint8_t c)
 static inline void processSBUS(uint8_t c)
 {
   if (frameIndex == 0) {
-    if (c == SBUS_SYNC) {
+    if ((c == SBUS_SYNC) && ((millis() - lastSerialPPM) > 1)) { // prevent locking onto wrong byte in frame
       frameIndex++;
     }
-  } else if (frameIndex < 24) {
+  } else if (frameIndex < 23) {
     ppmWork.bytes[(frameIndex++)-1] = c;
   } else {
-    if ((frameIndex == 24) && (c == SBUS_TAIL)) {
+    if ((frameIndex == 23) && (c == SBUS_TAIL)) {
       uint8_t set;
       for (set = 0; set < 2; set++) {
         PPM[(set<<3)] = ppmWork.sbus.ch[set].ch0 >> 1;
@@ -555,6 +556,7 @@ static inline void processSBUS(uint8_t c)
     }
     frameIndex = 0;
   }
+  lastSerialPPM = millis();
 }
 
 static inline void processSUMD(uint8_t c)
@@ -625,6 +627,8 @@ uint16_t getChannel(uint8_t ch)
     cli();  // disable interrupts when copying servo positions, to avoid race on 2 byte variable written by ISR
     v = PPM[ch];
     sei();
+  } else if ((ch > 0xf1) && (ch < 0xfd)) {
+    v = 12 + (ch - 0xf2) * 100;
   } else {
     switch (ch) {
 #ifdef TX_AIN0
@@ -648,21 +652,33 @@ uint16_t getChannel(uint8_t ch)
 #if defined(TX_MODE2)
       switch ((digitalRead(TX_MODE1)?1:0) | (digitalRead(TX_MODE2)?2:0)) {
       case 2:
-	v = 12;
-	break;
+        v = 12;
+        break;
       case 1:
-	v =  1012;
-	break;
+        v =  1012;
+        break;
       case 3:
-	v =  345;
-	break;
+        v =  345;
+        break;
       case 0:
-	v = 678;
-	break;
+        v = 678;
+        break;
       }
 #elif defined(TX_MODE1)
       v = (digitalRead(TX_MODE1) ? 12 : 1012);
 #endif
+      break;
+    case 0xf0:
+      v = 0;
+      break;
+    case 0xf1:
+      v = 6;
+      break;
+    case 0xfd:
+      v = 1018;
+      break;
+    case 0xfe:
+      v = 1023;
       break;
     }
   }
@@ -896,7 +912,7 @@ void loop(void)
     }
   }
 
-  if (bind_data.flags & TELEMETRY_FRSKY) {
+  if ((bind_data.flags & TELEMETRY_FRSKY) && lastTelemetry) {
     uint8_t linkQualityTX = countSetBits(linkQuality & 0xfffe);
 
     uint8_t compRX = compositeRSSI(RSSI_rx, linkQualityRX);

@@ -765,11 +765,13 @@ struct rxSpecialPinMap rxSpecialPins[] = {
 
 void rxInitHWConfig()
 {
-  uint8_t i;
   rx_config.rx_type = RX_OLRSNG4CH;
-  for (i = 0; i < 6; i++) {
-    rx_config.pinMapping[i] = i; // default to PWM out
-  }
+  rx_config.pinMapping[0] = PINMAP_PPM;
+  rx_config.pinMapping[1] = PINMAP_ANALOG;
+  rx_config.pinMapping[2] = PINMAP_RSSI;
+  rx_config.pinMapping[3] = PINMAP_ANALOG;
+  rx_config.pinMapping[4] = 4;
+  rx_config.pinMapping[5] = 5;
   rx_config.pinMapping[6] = PINMAP_RXD;
   rx_config.pinMapping[7] = PINMAP_TXD;
 }
@@ -852,6 +854,8 @@ void setupRfmInterrupt()
 #define TX_AIN_IS_DIGITAL
 #define TX_AIN0 2 // SDA
 #define TX_AIN1 3 // SCL
+#define TX_MODE1 2
+#define TX_MODE2 3
 
 #define BUZZER_PAS 10 // OCR4B
 #define BTN A0

@@ -13,7 +13,7 @@ CONFIGURATOR UTILITY / BINARY FIRMWARE NOTE:
 
   Binary firmware images are also available from
 
-  https://github.com/openLRSng/openlrsng.github.com/tree/master/binaries
+  https://openlrsng.org/releases/
 
 TRANSMITTER HW:
 ===============
