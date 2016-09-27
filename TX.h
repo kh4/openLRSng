@@ -547,7 +547,7 @@ static inline void processSBUS(uint8_t c)
         PPM[(set<<3)+6] = (((ppmWork.sbus.ch[set].ch6 >> 1) * 5) >> 2);
         PPM[(set<<3)+7] = (((ppmWork.sbus.ch[set].ch7 >> 1) * 5) >> 2);
       }
-      for(int i=0;i<16;i++){
+      for(uint8_t i=0; i<16; i++){
        PPM[i]=(PPM[i]<=108)?0:(PPM[i]-108);
      }	  
       if ((ppmWork.sbus.status & 0x08)==0) {
