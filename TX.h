@@ -428,7 +428,11 @@ void setup(void)
 
   if (bind_data.serial_baudrate && (bind_data.serial_baudrate < 5)) {
     serialMode = bind_data.serial_baudrate;
-    TelemetrySerial.begin((serialMode == 3) ? 100000 : 115200); // SBUS is 100000 rest 115200
+	if(serialMode == 3) { //SBUS, 100Kbaud, 8E2
+        TelemetrySerial.begin(100000, SERIAL_8E2);
+	} else {
+        TelemetrySerial.begin(115200);
+    }
   } else {
     // switch to userdefined baudrate here
     TelemetrySerial.begin(bind_data.serial_baudrate);
@@ -532,27 +536,34 @@ static inline void processSBUS(uint8_t c)
     if ((c == SBUS_SYNC) && ((millis() - lastSerialPPM) > 1)) { // prevent locking onto wrong byte in frame
       frameIndex++;
     }
-  } else if (frameIndex < 23) {
+  } else if (frameIndex < 24) {
     ppmWork.bytes[(frameIndex++)-1] = c;
   } else {
-    if ((frameIndex == 23) && (c == SBUS_TAIL)) {
+    if ((frameIndex == 24) && (c == SBUS_TAIL)) {
       uint8_t set;
       for (set = 0; set < 2; set++) {
-        PPM[(set<<3)] = ppmWork.sbus.ch[set].ch0 >> 1;
-        PPM[(set<<3)+1] = ppmWork.sbus.ch[set].ch1 >> 1;
-        PPM[(set<<3)+2] = ppmWork.sbus.ch[set].ch2 >> 1;
-        PPM[(set<<3)+3] = ppmWork.sbus.ch[set].ch3 >> 1;
-        PPM[(set<<3)+4] = ppmWork.sbus.ch[set].ch4 >> 1;
-        PPM[(set<<3)+5] = ppmWork.sbus.ch[set].ch5 >> 1;
-        PPM[(set<<3)+6] = ppmWork.sbus.ch[set].ch6 >> 1;
-        PPM[(set<<3)+7] = ppmWork.sbus.ch[set].ch7 >> 1;
+        PPM[(set<<3)] = ppmWork.sbus.ch[set].ch0;
+        PPM[(set<<3)+1] = ppmWork.sbus.ch[set].ch1;
+        PPM[(set<<3)+2] = ppmWork.sbus.ch[set].ch2;
+        PPM[(set<<3)+3] = ppmWork.sbus.ch[set].ch3;
+        PPM[(set<<3)+4] = ppmWork.sbus.ch[set].ch4;
+        PPM[(set<<3)+5] = ppmWork.sbus.ch[set].ch5;
+        PPM[(set<<3)+6] = ppmWork.sbus.ch[set].ch6;
+        PPM[(set<<3)+7] = ppmWork.sbus.ch[set].ch7;
       }
-      if ((ppmWork.sbus.status & 0x08)==0) {
+        // fix channel output scaling
+        // http://www.wolframalpha.com/input/?i=linear+fit+%7B86,+988%7D,+%7B906,+2012%7D,+%7B496,+1500%7D
+        for (uint8_t i = 0; i < 16; i++) {
+            PPM[i] = (( PPM[i] * 5 ) >> 3) + 880;
+            PPM[i] = servoUs2Bits(PPM[i]);
+        }
+		// status bit indicates SBUS in failsafe mode
+      // if ((ppmWork.sbus.status & 0x08)==0) {
 #ifdef DEBUG_DUMP_PPM
         ppmDump = 1;
 #endif
         ppmAge = 0;
-      }
+      // }
     }
     frameIndex = 0;
   }
