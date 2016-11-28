@@ -712,13 +712,13 @@ void setup()
   }
 
   if (rx_config.pinMapping[RXD_OUTPUT]!=PINMAP_RXD) {
-    UCSR0B &= 0xEF; //disable serial RXD
+    UCSR0B = (UCSR0B & 0xEF); //disable serial RXD
   }
   if ((rx_config.pinMapping[TXD_OUTPUT]!=PINMAP_TXD) &&
       (rx_config.pinMapping[TXD_OUTPUT]!=PINMAP_SUMD) &&
       (rx_config.pinMapping[TXD_OUTPUT]!=PINMAP_SBUS) &&
       (rx_config.pinMapping[TXD_OUTPUT]!=PINMAP_SPKTRM)) {
-    UCSR0B &= 0xF7; //disable serial TXD
+    UCSR0B = (UCSR0B & 0xF7); //disable serial TXD
   }
 
   serial_head = 0;
