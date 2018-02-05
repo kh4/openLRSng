@@ -10,42 +10,6 @@
 
 bool binary_mode_active = false;
 
-#define PSP_SYNC1 0xB5
-#define PSP_SYNC2 0x62
-
-#define PSP_REQ_BIND_DATA               1
-#define PSP_REQ_RX_CONFIG               2
-#define PSP_REQ_RX_JOIN_CONFIGURATION   3
-#define PSP_REQ_SCANNER_MODE            4
-#define PSP_REQ_SPECIAL_PINS            5
-#define PSP_REQ_FW_VERSION              6
-#define PSP_REQ_NUMBER_OF_RX_OUTPUTS    7
-#define PSP_REQ_ACTIVE_PROFILE          8
-#define PSP_REQ_RX_FAILSAFE             9
-#define PSP_REQ_TX_CONFIG               10
-#define PSP_REQ_PPM_IN                  11
-#define PSP_REQ_DEFAULT_PROFILE         12
-
-#define PSP_SET_BIND_DATA               101
-#define PSP_SET_RX_CONFIG               102
-#define PSP_SET_TX_SAVE_EEPROM          103
-#define PSP_SET_RX_SAVE_EEPROM          104
-#define PSP_SET_TX_RESTORE_DEFAULT      105
-#define PSP_SET_RX_RESTORE_DEFAULT      106
-#define PSP_SET_ACTIVE_PROFILE          107
-#define PSP_SET_RX_FAILSAFE             108
-#define PSP_SET_TX_CONFIG               109
-#define PSP_SET_DEFAULT_PROFILE         110
-
-#define PSP_SET_EXIT                    199
-
-#define PSP_INF_ACK                     201
-#define PSP_INF_REFUSED                 202
-#define PSP_INF_CRC_FAIL                203
-#define PSP_INF_DATA_TOO_LONG           204
-
-#define AS_U8ARRAY(x) ((uint8_t *)(x))
-
 extern volatile uint8_t ppmAge;
 extern struct rxSpecialPinMap rxcSpecialPins[];
 extern uint8_t rxcSpecialPinCount;
@@ -53,7 +17,7 @@ extern uint8_t rxcNumberOfOutputs;
 extern uint16_t rxcVersion;
 uint8_t rxcConnect();
 uint16_t getChannel(uint8_t ch);
-void checkSetupPpm(void);
+void checkSetupPPM(void);
 uint8_t PSP_crc;
 
 void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t data_buffer[]);
@@ -95,7 +59,7 @@ void PSP_serialize_float32(float f)
 
 void PSP_protocol_head(uint8_t code, uint16_t length)
 {
-  PSP_crc = 0; // reset crc
+  PSP_crc = 0; // reset CRC
 
   Serial.write(PSP_SYNC1);
   Serial.write(PSP_SYNC2);
@@ -205,7 +169,8 @@ void binaryMode()
   // Just entered binary mode, flip the bool
   binary_mode_active = true;
 
-  while (binary_mode_active == true) { // LOCK user here until exit command is received
+  while (binary_mode_active == true) { 
+    // LOCK user here until exit command is received
     if (Serial.available()) {
       PSP_read();
     }
@@ -235,16 +200,13 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
   case PSP_REQ_RX_JOIN_CONFIGURATION:
     PSP_protocol_head(PSP_REQ_RX_JOIN_CONFIGURATION, 1);
     // 1 success, 2 timeout, 3 failed response
-
     PSP_serialize_uint8(rxcConnect());
     break;
   case PSP_REQ_SCANNER_MODE:
     PSP_protocol_head(PSP_REQ_SCANNER_MODE, 1);
     PSP_serialize_uint8(0x01);
     PSP_protocol_tail();
-
     scannerMode();
-
     return;
     break;
   case PSP_REQ_SPECIAL_PINS:
@@ -337,7 +299,7 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     }
     break;
 
-    // SET
+  // SET
   case PSP_SET_BIND_DATA:
     PSP_protocol_head(PSP_SET_BIND_DATA, 1);
 
@@ -426,7 +388,7 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     PSP_protocol_head(PSP_SET_RX_FAILSAFE, 1);
     {
       uint8_t rxtx_buf[(PPM_CHANNELS * 2) + 1];
- 
+
       if (payload_length_received == (PPM_CHANNELS * 2)) {
         rxtx_buf[0] = 'g';
         memcpy((rxtx_buf + 1), data_buffer, (PPM_CHANNELS * 2));
@@ -457,7 +419,7 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
       for (uint8_t i = 0; i < sizeof(tx_config); i++) {
         AS_U8ARRAY(&tx_config)[i] = data_buffer[i];
       }
-      checkSetupPpm(); // resetup to handle the invert flag live
+      checkSetupPPM(); // resetup to handle the invert flag live
       PSP_serialize_uint8(0x01);
     } else {
       PSP_serialize_uint8(0x00);
@@ -502,12 +464,12 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
   case PSP_REQ_RX_CONFIG:
     PSP_protocol_head(PSP_REQ_RX_CONFIG, sizeof(rx_config));
     {
-    if (watchdogUsed) {
-      rx_config.flags|=WATCHDOG_USED;
-    } else {
-      rx_config.flags&=~WATCHDOG_USED;
-    }
-    rx_config.rx_type &= ~0xC0;
+      if (watchdogUsed) {
+        rx_config.flags|=WATCHDOG_USED;
+      } else {
+        rx_config.flags&=~WATCHDOG_USED;
+      }
+      rx_config.rx_type &= ~0xC0;
 #if (RFMTYPE == 868)
       rx_config.rx_type |= (0x01 << 6);
 #elif (RFMTYPE == 915)
@@ -520,19 +482,19 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     break;
   case PSP_REQ_RX_JOIN_CONFIGURATION:
     PSP_protocol_head(PSP_REQ_RX_JOIN_CONFIGURATION, 1);
-  {
-        PSP_serialize_uint8(0x01);
+    {
+      PSP_serialize_uint8(0x01);
     }
-  break;
+    break;
   case PSP_REQ_SCANNER_MODE:
     PSP_protocol_head(PSP_REQ_SCANNER_MODE, 1);
-  {
-        PSP_serialize_uint8(0x01);
-        PSP_protocol_tail();
-        scannerMode();
-        return;
+    {
+      PSP_serialize_uint8(0x01);
+      PSP_protocol_tail();
+      scannerMode();
+      return;
     }
-  break;
+    break;
   case PSP_REQ_SPECIAL_PINS:
     PSP_protocol_head(PSP_REQ_SPECIAL_PINS, sizeof(rxSpecialPins));
     {
@@ -554,43 +516,42 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     }
     break;
   case PSP_REQ_RX_FAILSAFE:
-  PSP_protocol_head(PSP_REQ_RX_FAILSAFE, (PPM_CHANNELS * 2));
-  {
-    for (uint8_t i = 0; i < PPM_CHANNELS; i++) {
-      PSP_serialize_uint16(failsafePPM[i]); // failsafe data
-    }
-  }
-  break;
-
-    // SET
-  case PSP_SET_RX_CONFIG:
-    PSP_protocol_head(PSP_SET_RX_CONFIG, 1);
-  {
-    if (payload_length_received == sizeof(rx_config)) {
-      for (uint8_t i = 0; i < sizeof(rx_config); i++) {
-        AS_U8ARRAY(&rx_config)[i] = data_buffer[i];
+    PSP_protocol_head(PSP_REQ_RX_FAILSAFE, (PPM_CHANNELS * 2));
+    {
+      for (uint8_t i = 0; i < PPM_CHANNELS; i++) {
+        PSP_serialize_uint16(failsafePPM[i]); // failsafe data
       }
-      PSP_serialize_uint8(0x01);
-    } else {
-      PSP_serialize_uint8(0x00);
     }
-  }
     break;
 
+  // SET
+  case PSP_SET_RX_CONFIG:
+    PSP_protocol_head(PSP_SET_RX_CONFIG, 1);
+    {
+      if (payload_length_received == sizeof(rx_config)) {
+        for (uint8_t i = 0; i < sizeof(rx_config); i++) {
+          AS_U8ARRAY(&rx_config)[i] = data_buffer[i];
+        }
+        PSP_serialize_uint8(0x01);
+      } else {
+        PSP_serialize_uint8(0x00);
+      }
+    }
+    break;
   case PSP_SET_RX_SAVE_EEPROM:
     PSP_protocol_head(PSP_SET_RX_SAVE_EEPROM, 1);
-  {
-    accessEEPROM(0, true);
-    PSP_serialize_uint8(0x01); // success
+    {
+      accessEEPROM(0, true);
+      PSP_serialize_uint8(0x01); // success
     }
-  break;
+    break;
   case PSP_SET_RX_RESTORE_DEFAULT:
     PSP_protocol_head(PSP_SET_RX_RESTORE_DEFAULT, 1);
-  {
-    rxInitDefaults(1);
-    PSP_serialize_uint8(0x01); // success
+    {
+      rxInitDefaults(1);
+      PSP_serialize_uint8(0x01); // success
     }
-  break;
+    break;
   case PSP_SET_RX_FAILSAFE:
     PSP_protocol_head(PSP_SET_RX_FAILSAFE, 1);
     {
@@ -599,18 +560,18 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
       } else {
         memset(failsafePPM,0,sizeof(failsafePPM));
       }
-    failsafeSave();
-    PSP_serialize_uint8(0x01);
+      failsafeSave();
+      PSP_serialize_uint8(0x01);
     }
     break;
   case PSP_SET_EXIT:
     PSP_protocol_head(PSP_SET_EXIT, 1);
-  {
-    PSP_serialize_uint8(0x01);
-    PSP_protocol_tail();
-    binary_mode_active = false;
-    return;
-  }
+    {
+      PSP_serialize_uint8(0x01);
+      PSP_protocol_tail();
+      binary_mode_active = false;
+      return;
+    }
     break;
   default: // Unrecognized code
     PSP_protocol_head(PSP_INF_REFUSED, 1);

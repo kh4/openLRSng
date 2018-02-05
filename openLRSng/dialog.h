@@ -1,24 +1,35 @@
 #ifndef _DIALOG_H_
 #define _DIALOG_H_
 
-/*
-  Simple CLI dialog
-*/
-
 #define EDIT_BUFFER_SIZE 100
+#define SPECIALSTR(x) (specialStrs[(x)&0x0F]) // note must be changed if not 16 strings
 
-// Needed by dialog code
 static const char *specialStrs[] = { "PPM","RSSI","SDA","SCL","RXD","TXD","AIN","LBEEP",
                                      "SPKTRM", "SBUS", "SUMD", "LLIND", "", "", "", ""
                                    };
-#define SPECIALSTR(x) (specialStrs[(x)&0x0f]) // note must be changed if not 16 strings
+
+const static char *chConfStr[8] = { "N/A", "4+4", "8", "8+4", "12", "12+4", "16", "N/A" };
 
 int8_t  CLI_menu = 0;
 char    CLI_buffer[EDIT_BUFFER_SIZE + 1];
 uint8_t CLI_buffer_position = 0;
 bool    CLI_magic_set = 0;
 
-const static char *chConfStr[8] = { "N/A", "4+4", "8", "8+4", "12", "12+4", "16", "N/A" };
+// prototypes
+void printYesNo(uint8_t yes);
+void bindPrint(void);
+void rxPrintDTime(uint8_t val);
+void rxPrint(void);
+void CLI_menu_headers(void);
+void RX_menu_headers(void);
+void showFrequencies(void);
+void CLI_buffer_reset(void);
+uint8_t CLI_inline_edit(char c);
+void handleRXmenu(char c);
+void CLI_RX_config(void);
+void handleCLImenu(char c);
+void handleCLI(void);
+
 
 void printYesNo(uint8_t yes)
 {
@@ -85,7 +96,7 @@ void bindPrint(void)
 
   Serial.print(F("C) TX console baudrate:"));
   Serial.println(tx_config.console_baud_rate);
-  
+
   Serial.print(F("Calculated packet interval: "));
   Serial.print(getInterval(&bind_data));
   Serial.print(F(" == "));
@@ -129,7 +140,7 @@ void rxPrint(void)
       if (rx_config.pinMapping[i] > 15) {
         Serial.print("S");
       }
-      Serial.println((rx_config.pinMapping[i] & 0x0f) + 1);
+      Serial.println((rx_config.pinMapping[i] & 0x0F) + 1);
     } else {
       Serial.println(SPECIALSTR(rx_config.pinMapping[i]));
     }
@@ -265,7 +276,7 @@ void RX_menu_headers(void)
   }
 }
 
-void showFrequencies()
+void showFrequencies(void)
 {
   for (uint8_t ch = 0; (ch < MAXHOPS) && (bind_data.hopchannel[ch] != 0) ; ch++) {
     Serial.print("Hop channel ");
@@ -377,7 +388,7 @@ void handleRXmenu(char c)
     break;
     case 'x':
     case 'X':
-    case 0x1b: //ESC
+    case 0x1B: //ESC
       // restore settings from EEPROM
       Serial.println("Aborted edits\n");
       // leave CLI
@@ -388,13 +399,13 @@ void handleRXmenu(char c)
     case 'c':
     case 'd':
       c -= 'a' - 'A';
-      // Fallthru
+    // Fallthru
     case 'A':
     case 'B':
     case 'C':
     case 'D':
       c -= 'A' - 10 - '0';
-      // Fallthru
+    // Fallthru
     case '9':
     case '8':
     case '7':
@@ -616,7 +627,7 @@ void handleRXmenu(char c)
   }
 }
 
-void CLI_RX_config()
+void CLI_RX_config(void)
 {
   Serial.println(F("Connecting to RX, power up the RX (with bind plug if not using always bind)"));
   Serial.println(F("Press any key to cancel"));
@@ -664,7 +675,7 @@ void handleCLImenu(char c)
       break;
     case 'x':
     case 'X':
-    case 0x1b: //ESC
+    case 0x1B: //ESC
       // restore settings from EEPROM
       txReadEeprom();
       Serial.println("Reverted settings from EEPROM\n");
@@ -794,7 +805,7 @@ void handleCLImenu(char c)
           break;
         case 7:
           if ((value >= 1) && (value <= 6)) {
-            bind_data.flags &= 0xf8;
+            bind_data.flags &= 0xF8;
             bind_data.flags |= value;
             valid_input = 1;
           }
@@ -829,7 +840,7 @@ void handleCLImenu(char c)
   }
 }
 
-void handleCLI()
+void handleCLI(void)
 {
   CLI_menu = -1;
   CLI_magic_set = 0;

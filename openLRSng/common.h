@@ -1,14 +1,15 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
-//####### COMMON FUNCTIONS #########
+volatile uint32_t lastPktTimeTX = 0;
+volatile uint32_t lastPktTimeRX = 0;
 
-#define AVAILABLE    0
-#define TRANSMIT    1
-#define TRANSMITTED  2
-#define RECEIVE    3
-#define RECEIVED  4
+uint32_t tx_start = 0;
+volatile uint8_t RF_Mode = 0;
+volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512, 512 };
+const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
 
+// prototypes
 uint8_t twoBitfy(uint16_t in);
 uint8_t countSetBits(uint16_t x);
 uint16_t servoUs2Bits(uint16_t x);
@@ -36,19 +37,14 @@ uint8_t tx_done(void);
 void tx_packet(uint8_t* pkt, uint8_t size);
 uint32_t getInterval(struct bind_data *bd);
 
-uint32_t tx_start = 0;
-volatile uint8_t RF_Mode = 0;
-volatile uint32_t lastReceived = 0;
-volatile uint16_t PPM[PPM_CHANNELS] = { 512, 512, 512, 512, 512, 512, 512, 512 , 512, 512, 512, 512, 512, 512, 512, 512 };
-const static uint8_t pktsizes[8] = { 0, 7, 11, 12, 16, 17, 21, 0 };
-
-void RFM22B_Int()
+void RFM22B_Int(void)
 {
   if (RF_Mode == TRANSMIT) {
     RF_Mode = TRANSMITTED;
+    lastPktTimeTX = micros();
   } else if (RF_Mode == RECEIVE) {
     RF_Mode = RECEIVED;
-    lastReceived = millis();
+    lastPktTimeRX = micros();
   }
 }
 
@@ -65,14 +61,11 @@ uint8_t getChannelCount(struct bind_data *bd)
 uint32_t getInterval(struct bind_data *bd)
 {
   uint32_t ret;
-  // Sending an 'x' byte packet at 'y' bps takes approx. (emperical):
-  // usec = (x + 15 {20 w/ diversity}) * 8200000 / bps
-#define BYTES_AT_BAUD_TO_USEC(bytes, bps, div) ((uint32_t)((bytes) + (div?20:15)) * 8200000L / (uint32_t)(bps))
 
   ret = (BYTES_AT_BAUD_TO_USEC(getPacketSize(bd), modem_params[bd->modem_params].bps, bd->flags&DIVERSITY_ENABLED) + 2000);
 
   if (bd->flags & TELEMETRY_MASK) {
-    ret += (BYTES_AT_BAUD_TO_USEC(TELEMETRY_PACKETSIZE, modem_params[bd->modem_params].bps, bd->flags&DIVERSITY_ENABLED) + 2000);
+    ret += (BYTES_AT_BAUD_TO_USEC(DOWNLINK_PACKETSIZE, modem_params[bd->modem_params].bps, bd->flags&DIVERSITY_ENABLED) + 2000);
   }
 
   // round up to ms
@@ -105,10 +98,10 @@ void packChannels(uint8_t config, volatile uint16_t PPM[], uint8_t *p)
 {
   uint8_t i;
   for (i = 0; i <= (config / 2); i++) { // 4ch packed in 5 bytes
-    p[0] = (PPM[0] & 0xff);
-    p[1] = (PPM[1] & 0xff);
-    p[2] = (PPM[2] & 0xff);
-    p[3] = (PPM[3] & 0xff);
+    p[0] = (PPM[0] & 0xFF);
+    p[1] = (PPM[1] & 0xFF);
+    p[2] = (PPM[2] & 0xFF);
+    p[3] = (PPM[3] & 0xFF);
     p[4] = ((PPM[0] >> 8) & 3) | (((PPM[1] >> 8) & 3) << 2) | (((PPM[2] >> 8) & 3) << 4) | (((PPM[3] >> 8) & 3) << 6);
     p += 5;
     PPM += 4;
@@ -123,9 +116,9 @@ void unpackChannels(uint8_t config, volatile uint16_t PPM[], uint8_t *p)
   uint8_t i;
   for (i=0; i<=(config/2); i++) { // 4ch packed in 5 bytes
     PPM[0] = (((uint16_t)p[4] & 0x03) << 8) + p[0];
-    PPM[1] = (((uint16_t)p[4] & 0x0c) << 6) + p[1];
+    PPM[1] = (((uint16_t)p[4] & 0x0C) << 6) + p[1];
     PPM[2] = (((uint16_t)p[4] & 0x30) << 4) + p[2];
-    PPM[3] = (((uint16_t)p[4] & 0xc0) << 2) + p[3];
+    PPM[3] = (((uint16_t)p[4] & 0xC0) << 2) + p[3];
     p+=5;
     PPM+=4;
   }
@@ -219,12 +212,12 @@ uint32_t delayInMsLong(uint8_t d)
 
 void init_rfm(uint8_t isbind)
 {
-  #ifdef SDN_pin
+#ifdef SDN_pin
   digitalWrite(SDN_pin, 1);
   delay(50);
   digitalWrite(SDN_pin, 0);
   delay(50);
-  #endif
+#endif
   rfmSetReadyMode(); // turn on the XTAL and give it time to settle
   delayMicroseconds(600);
   rfmClearIntStatus();
@@ -233,7 +226,7 @@ void init_rfm(uint8_t isbind)
 
   uint32_t magic = isbind ? BIND_MAGIC : bind_data.rf_magic;
   for (uint8_t i = 0; i < 4; i++) {
-    rfmSetHeader(i, (magic >> 24) & 0xff);
+    rfmSetHeader(i, (magic >> 24) & 0xFF);
     magic = magic << 8; // advance to next byte
   }
 
@@ -263,7 +256,7 @@ void rx_reset(void)
   rfmSetRX();
 }
 
-void check_module(void)
+void checkModule(void)
 {
   if (rfmGetGPIO1() == 0) {
     // detect the locked module and reboot
@@ -292,22 +285,22 @@ void tx_packet(uint8_t* pkt, uint8_t size)
   tx_packet_async(pkt, size);
   while ((RF_Mode == TRANSMIT) && ((micros() - tx_start) < 100000));
 
-  #ifdef TX_TIMING_DEBUG
+#ifdef TX_TIMING_DEBUG
   if (RF_Mode == TRANSMIT) {
     Serial.println("TX timeout!");
   }
   Serial.print("TX took:");
   Serial.println(micros() - tx_start);
-  #endif
+#endif
 }
 
 uint8_t tx_done()
 {
   if (RF_Mode == TRANSMITTED) {
-    #ifdef TX_TIMING_DEBUG
+#ifdef TX_TIMING_DEBUG
     Serial.print("TX took:");
     Serial.println(micros() - tx_start);
-    #endif
+#endif
     RF_Mode = AVAILABLE;
     return 1; // success
   } else if ((RF_Mode == TRANSMIT) && ((micros() - tx_start) > 100000)) {
@@ -449,10 +442,10 @@ void printVersion(uint16_t v, HardwareSerial *serial)
   if (serial) {
     serial->print(v >> 8);
     serial->print('.');
-    serial->print((v >> 4) & 0x0f);
-    if (version & 0x0f) {
+    serial->print((v >> 4) & 0x0F);
+    if (version & 0x0F) {
       serial->print('.');
-      serial->print(v & 0x0f);
+      serial->print(v & 0x0F);
     }
   }
 }

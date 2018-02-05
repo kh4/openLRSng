@@ -2,7 +2,6 @@
 #define _FRSKYTX_H_
 
 // FrSky emulation on TX side
-//
 
 // Interval at which SendFrame should get called
 // FrSky frame is maximally 20bytes (all bytes stuffed)
@@ -14,16 +13,26 @@
 #define SMARTPORT_INTERVAL 12000
 #define SMARTPORT_BAUDRATE 57600
 
+#define FRSKY_RDI (FrSkyUserIdx >> 4)
+#define FRSKY_WRI (FrSkyUserIdx & 0x0F)
+
 bool frskyIsSmartPort = 0;
 HardwareSerial *frskyPort;
 
 uint8_t FrSkyUserBuf[16];
 uint8_t FrSkyUserIdx = 0; // read/write indexes
-#define FRSKY_RDI (FrSkyUserIdx >> 4)
-#define FRSKY_WRI (FrSkyUserIdx & 0x0f)
 uint32_t frskyLast = 0;
-
 uint8_t frskySchedule = 0;
+
+// prototypes
+void frskyInit(HardwareSerial *port, bool isSmartPort, bool dontInitialiseSerial);
+void frskyUserData(uint8_t c);
+void frskySendStuffed(uint8_t frame[]);
+void frskySendFrame(uint8_t a1, uint8_t a2, uint8_t rx, uint8_t tx);
+void smartportSend(uint8_t *p);
+void smartportIdle(void);
+void smartportSendFrame(uint8_t a1, uint8_t a2,uint8_t rssi, uint8_t prof);
+void frskyUpdate(uint8_t a1, uint8_t a2, uint8_t rx, uint8_t tx, uint8_t prof);
 
 void frskyInit(HardwareSerial *port, bool isSmartPort, bool dontInitialiseSerial)
 {
@@ -39,31 +48,30 @@ void frskyUserData(uint8_t c)
 {
   if ((FRSKY_WRI + 1) != FRSKY_RDI) {
     FrSkyUserBuf[FRSKY_WRI] = c;
-    FrSkyUserIdx = (FrSkyUserIdx & 0xf0) | ((FrSkyUserIdx + 1) & 0x0f);
+    FrSkyUserIdx = (FrSkyUserIdx & 0xF0) | ((FrSkyUserIdx + 1) & 0x0F);
   }
 }
 
 void frskySendStuffed(uint8_t frame[])
 {
-  frskyPort->write(0x7e);
+  frskyPort->write(0x7E);
   for (uint8_t i = 0; i < 9; i++) {
-    if ((frame[i] == 0x7e) || (frame[i] == 0x7d)) {
-      frskyPort->write(0x7d);
+    if ((frame[i] == 0x7E) || (frame[i] == 0x7D)) {
+      frskyPort->write(0x7D);
       frame[i] ^= 0x20;
     }
     frskyPort->write(frame[i]);
   }
-  frskyPort->write(0x7e);
+  frskyPort->write(0x7E);
 }
 
-
-// Send frsky voltage/RSSI or userdata frame
-// every 6th time we send the Ax/RSSI frame
 void frskySendFrame(uint8_t a1, uint8_t a2, uint8_t rx, uint8_t tx)
 {
+  // Send frsky voltage/RSSI or userdata frame
+  // every 6th time we send the Ax/RSSI frame
   uint8_t frame[9];
   if (frskySchedule == 0) {
-    frame[0] = 0xfe;
+    frame[0] = 0xFE;
     frame[1] = a1;
     frame[2] = a2;
     frame[3] = (rx >> 1); // this needs to be 0-127
@@ -73,7 +81,7 @@ void frskySendFrame(uint8_t a1, uint8_t a2, uint8_t rx, uint8_t tx)
   } else {
     if (FRSKY_RDI != FRSKY_WRI) {
       uint8_t bytes = 0;
-      frame[0] = 0xfd;
+      frame[0] = 0xFD;
       frame[1] = 0;
       frame[2] = 0; // unused
       while ((bytes < 6) && (FRSKY_RDI != FRSKY_WRI)) {
@@ -91,13 +99,13 @@ void frskySendFrame(uint8_t a1, uint8_t a2, uint8_t rx, uint8_t tx)
 void smartportSend(uint8_t *p)
 {
   uint16_t crc = 0;
-  frskyPort->write(0x7e);
+  frskyPort->write(0x7E);
   for (int i = 0; i < 9; i++) {
     if (i == 8) {
-      p[i] = 0xff - crc;
+      p[i] = 0xFF - crc;
     }
-    if ((p[i] == 0x7e) || (p[i] == 0x7d)) {
-      frskyPort->write(0x7d);
+    if ((p[i] == 0x7E) || (p[i] == 0x7D)) {
+      frskyPort->write(0x7D);
       frskyPort->write(0x20 ^ p[i]);
     } else {
       frskyPort->write(p[i]);
@@ -105,17 +113,17 @@ void smartportSend(uint8_t *p)
     if (i>0) {
       crc += p[i]; //0-1FF
       crc += crc >> 8; //0-100
-      crc &= 0x00ff;
+      crc &= 0x00FF;
     }
   }
 }
 
-void smartportIdle()
+void smartportIdle(void)
 {
-  frskyPort->write(0x7e);
+  frskyPort->write(0x7E);
 }
 
-void smartportSendFrame(uint8_t a1, uint8_t a2 ,uint8_t rssi, uint8_t prof)
+void smartportSendFrame(uint8_t a1, uint8_t a2,uint8_t rssi, uint8_t prof)
 {
   uint8_t buf[9];
   frskySchedule = (frskySchedule + 1) % 36;
@@ -124,22 +132,22 @@ void smartportSendFrame(uint8_t a1, uint8_t a2 ,uint8_t rssi, uint8_t prof)
   switch (frskySchedule) {
   case 0: // SWR
     buf[2] = 0x05;
-    buf[3] = 0xf1;
+    buf[3] = 0xF1;
     buf[4] = prof + 1;
     break;
   case 1: // RSSI
     buf[2] = 0x01;
-    buf[3] = 0xf1;
+    buf[3] = 0xF1;
     buf[4] = (uint16_t)(rssi) * 100 / 256;
     break;
   case 2: //BATT
     buf[2] = 0x04;
-    buf[3] = 0xf1;
+    buf[3] = 0xF1;
     buf[4] = a1;
     break;
   case 3: //A2
     buf[2] = 0x03;
-    buf[3] = 0xf1;
+    buf[3] = 0xF1;
     buf[4] = a2;
     break;
   default:

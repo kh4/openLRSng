@@ -15,6 +15,11 @@
 #define RFM22B_GPIOCFG2    0x0D
 #define RFM22B_IOPRTCFG    0x0E
 
+#define RFM22B_ADC_CFG 0x0F
+#define RFM22B_ADC_VAL 0x11
+#define RFM22B_TMP_CAL  0x12
+#define RFM22B_TMP_OFFSET 0x13
+
 #define RFM22B_IFBW           0x1C
 #define RFM22B_AFCLPGR      0x1D
 #define RFM22B_AFCTIMG      0x1E
@@ -97,6 +102,7 @@ uint8_t rfmGetGPIO1(void);
 uint8_t rfmGetRSSI(void);
 uint8_t rfmGetPacketLength(void);
 void rfmGetPacket(uint8_t *buf, uint8_t size);
+uint8_t rfmGetTemperature(void);
 
 void rfmSetTX(void);
 void rfmSetRX(void);
@@ -120,13 +126,13 @@ void rfmInit(uint8_t diversity)
   spiWriteRegister(RFM22B_PREAMLEN, (diversity ? 0x14 : 0x0A) );    // 40 bit preamble, 80 with diversity
   spiWriteRegister(RFM22B_IOPRTCFG, 0x00);    // gpio 0,1,2 NO OTHER FUNCTION.
 
-  #ifdef SWAP_GPIOS
+#ifdef SWAP_GPIOS
   spiWriteRegister(RFM22B_GPIOCFG0, 0x15);    // gpio0 RX State
   spiWriteRegister(RFM22B_GPIOCFG1, 0x12);    // gpio1 TX State
-  #else
+#else
   spiWriteRegister(RFM22B_GPIOCFG0, 0x12);    // gpio0 TX State
   spiWriteRegister(RFM22B_GPIOCFG1, 0x15);    // gpio1 RX State
-  #endif
+#endif
 
   // Packet settings
   spiWriteRegister(RFM22B_DACTL, 0x8C);    // enable packet handler, msb first, enable crc,
@@ -205,6 +211,16 @@ void rfmGetPacket(uint8_t *buf, uint8_t size)
   }
 }
 
+uint8_t rfmGetTemperature(void)
+{
+  spiWriteRegister(RFM22B_ADC_CFG, 0x00); //reset register config to temp sensor
+  spiWriteRegister(RFM22B_TMP_CAL, 0x60); // tsrange:01 entoffs:1
+  spiWriteRegister(RFM22B_TMP_OFFSET, 0x00); // tvoffs:0
+  spiWriteRegister(RFM22B_ADC_CFG, 0x80); // start sensor reading
+  delayMicroseconds(60);// wait until reading is complete
+  return spiReadRegister(RFM22B_ADC_VAL); // retrieve & return value
+}
+
 void rfmSetTX(void)
 {
   spiWriteRegister(RFM22B_OPMODE1, (RFM22B_OPMODE_TX | RFM22B_OPMODE_READY));
@@ -230,9 +246,9 @@ void rfmSetCarrierFrequency(uint32_t f)
     fb = f / 20000000 - 24;
     fc = (f - (fb + 24) * 20000000) * 2 / 625;
   }
-  spiWriteRegister(RFM22B_BANDSEL, 0x40 + (hbsel ? 0x20 : 0) + (fb & 0x1f));
+  spiWriteRegister(RFM22B_BANDSEL, 0x40 + (hbsel ? 0x20 : 0) + (fb & 0x1F));
   spiWriteRegister(RFM22B_CARRFREQ1, (fc >> 8));
-  spiWriteRegister(RFM22B_CARRFREQ0, (fc & 0xff));
+  spiWriteRegister(RFM22B_CARRFREQ0, (fc & 0xFF));
   delayMicroseconds(200); // VCO / PLL calibration delay
 }
 
@@ -243,7 +259,7 @@ void rfmSetChannel(uint8_t ch)
 
 void rfmSetDirectOut(uint8_t enable)
 {
- static uint8_t r1 = 0, r2 = 0, r3 = 0;
+  static uint8_t r1 = 0, r2 = 0, r3 = 0;
   if (enable) {
     r1 = spiReadRegister(RFM22B_DACTL);
     r2 = spiReadRegister(RFM22B_MODCTL2);
@@ -256,7 +272,7 @@ void rfmSetDirectOut(uint8_t enable)
     // restore previous values
     spiWriteRegister(RFM22B_DACTL, r1);
     spiWriteRegister(RFM22B_MODCTL2, r2);
-    spiWriteRegister(RFM22B_FREQDEV, r3); 
+    spiWriteRegister(RFM22B_FREQDEV, r3);
   }
 }
 

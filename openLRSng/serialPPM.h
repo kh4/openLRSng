@@ -1,14 +1,11 @@
 #ifndef _SERIALPPM_H_
 #define _SERIALPPM_H_
 
-#define SBUS_SYNC 0x0f
+#define SBUS_SYNC 0x0F
 #define SBUS_TAIL 0x00
 #define SPKTRM_SYNC1 0x03
 #define SPKTRM_SYNC2 0x01
-#define SUMD_HEAD 0xa8
-
-uint32_t sOutLast = 0;
-uint8_t  spektrumSendHi = 0;
+#define SUMD_HEAD 0xA8
 
 struct sbus_dat {
   uint16_t ch0 : 11;
@@ -35,11 +32,17 @@ union sbus_msg {
   struct sbus_dat msg;
 } sbus;
 
+uint32_t sOutLast = 0;
+uint8_t  spektrumSendHi = 0;
+
+
+// prototypes
 uint16_t PPMtoSBUS(uint16_t input);
 void sumdWriteCRC(uint8_t c);
 void sendSBUSFrame(uint8_t failsafe, uint8_t lostpack);
 void sendSpektrumFrame(void);
 void sendSUMDFrame(uint8_t failsafe);
+
 
 uint16_t PPMtoSBUS(uint16_t input)
 {
@@ -94,7 +97,7 @@ void sendSpektrumFrame(void)
     Serial.write(SPKTRM_SYNC2);
     for (uint8_t i = 0; i < 7; i++) {
       Serial.write((ch << 2) | ((PPM[ch] >> 8) & 0x03));
-      Serial.write(PPM[ch] & 0xff);
+      Serial.write(PPM[ch] & 0xFF);
       ch++;
     }
   }
@@ -112,10 +115,10 @@ void sendSUMDFrame(uint8_t failsafe)
     for (uint8_t i = 0; i < 16; i++) {
       uint16_t val = servoBits2Us(PPM[i]) << 3;
       sumdWriteCRC(val >> 8);
-      sumdWriteCRC(val & 0xff);
+      sumdWriteCRC(val & 0xFF);
     }
     Serial.write(CRC16_value >> 8);
-    Serial.write(CRC16_value & 0xff);
+    Serial.write(CRC16_value & 0xFF);
   }
 }
 

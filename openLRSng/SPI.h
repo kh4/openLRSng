@@ -1,10 +1,6 @@
 #ifndef _SPI_H_
 #define _SPI_H_
 
-// **** bit-banged SPI routines
-
-#define NOP() __asm__ __volatile__("nop")
-
 uint8_t spiReadBit(void);
 uint8_t spiReadData(void);
 uint8_t spiReadRegister(uint8_t address);
@@ -86,7 +82,7 @@ void spiWriteRegister(uint8_t address, uint8_t data)
 
 void spiSendAddress(uint8_t i)
 {
-  spiSendCommand(i & 0x7f);
+  spiSendCommand(i & 0x7F);
 }
 
 void spiSendCommand(uint8_t command)
