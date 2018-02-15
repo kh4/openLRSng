@@ -81,7 +81,9 @@
 //####################
 
 #include <Arduino.h>
+#include <avr/eeprom.h>
 
+#include "defines.h"
 #include "version.h"
 #include "binding.h"
 #include "hardware.h"
@@ -101,6 +103,7 @@
 #endif
 #include "frskytx.h"
 #include "chpicker.h"
+#include "multiproto.h"
 #include "TX.h"
 #else
 #include "beacon.h"

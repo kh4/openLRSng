@@ -64,19 +64,19 @@ uint8_t slaveHandler(uint8_t *data, uint8_t flags)
     if (flags & MYI2C_SLAVE_ISFIRST) {
       slaveAct = *data;
       slaveCnt = 0;
-      if ((slaveAct & 0xe0) == 0x60) {
+      if ((slaveAct & 0xE0) == 0x60) {
         if (slaveState >= 2) {
-          RF_channel = (*data & 0x1f);
+          RF_channel = (*data & 0x1F);
           slaveState = 3; // to RX mode
         }
         return 0;
-      } else if (slaveAct == 0xfe) {
+      } else if (slaveAct == 0xFE) {
         // deinitialize
         slaveState = 0;
         return 0;
       }
     } else {
-      if (slaveAct == 0xff) {
+      if (slaveAct == 0xFF) {
         // load bind_data
         if (slaveCnt < sizeof(bind_data)) {
           ((uint8_t *)(&bind_data))[slaveCnt++] = *data;
@@ -120,7 +120,7 @@ void slaveLoop(void)
 void reinitSlave(void)
 {
   uint8_t ret, buf[sizeof(bind_data)+1];
-  buf[0] = 0xff;
+  buf[0] = 0xFF;
   memcpy((buf + 1), &bind_data, sizeof(bind_data));
   ret = myI2C_writeTo(32, buf, (sizeof(bind_data) + 1), MYI2C_WAIT);
 

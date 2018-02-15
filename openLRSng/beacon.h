@@ -1,9 +1,11 @@
 #ifndef _BEACON_H_
 #define _BEACON_H_
 
+// prototypes
 uint8_t beaconGetRSSI(void);
 void beacon_tone(int16_t hz, int16_t len);
 void beacon_send(bool static_tone);
+
 
 uint8_t beaconGetRSSI(void)
 {
@@ -22,7 +24,7 @@ uint8_t beaconGetRSSI(void)
   delay(1);
   rssiSUM += rfmGetRSSI();
 
-  Green_LED_OFF
+  Green_LED_OFF;
   return rssiSUM>>2;
 }
 
@@ -49,7 +51,7 @@ void beacon_send(bool static_tone)
 {
   watchdogConfig(WATCHDOG_4S);
   Green_LED_ON
-  
+
   rfmClearInterrupts();
   rfmClearIntStatus();
   rfmSetDirectOut(1); // enable direct output
@@ -94,7 +96,7 @@ void beacon_send(bool static_tone)
   }
   rfmSetReadyMode();
   rfmSetDirectOut(0);  // disable direct output
-  Green_LED_OFF
+  Green_LED_OFF;
   watchdogConfig(WATCHDOG_2S);
 }
 

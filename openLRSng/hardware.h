@@ -1,48 +1,12 @@
 #ifndef _HARDWARE_H_
 #define _HARDWARE_H_
 
-// Generic definitions needed always
-
-#define RX_FLYTRON8CH 0x01
-#define RX_OLRSNG4CH  0x02
-#define RX_OLRSNG12CH 0x03
-#define RX_DTFUHF10CH 0x04
-#define RX_PTOWER     0x05
-#define RX_MICRO      0x06
-#define RX_FLYTRONM3  0x07
-#define RX_BRORX      0x08
-
-#define PINMAP_PPM    0x20
-#define PINMAP_RSSI   0x21
-#define PINMAP_SDA    0x22
-#define PINMAP_SCL    0x23
-#define PINMAP_RXD    0x24
-#define PINMAP_TXD    0x25
-#define PINMAP_ANALOG 0x26
-#define PINMAP_LBEEP  0x27 // packetloss beeper
-#define PINMAP_SPKTRM 0x28 // spektrum satellite output
-#define PINMAP_SBUS   0x29 // SBUS output
-#define PINMAP_SUMD   0x2a // SUMD output
-#define PINMAP_LLIND  0x2b // LinkLoss indication (digital output)
-
 void RFM22B_Int(void);
-
-// Following table is used by the dialog code to
-// determine possible extra functions for each output.
-typedef struct pinMask {
-  uint8_t B;
-  uint8_t C;
-  uint8_t D;
-} pinMask_t;
-
-struct rxSpecialPinMap {
-  uint8_t output;
-  uint8_t type;
-};
-
-#if (COMPILE_TX == 1)
-#define CLI_ENABLED
-#endif
+void buzzerInit(void);
+void buzzerOn(uint16_t freq);
+void setupSPI(void);
+void setupRfmInterrupt(void);
+void rxInitHWConfig(void);
 
 //####### Board Pinouts #########
 
@@ -65,7 +29,7 @@ HardwareSerial *rcSerial = &Serial;
 #define PPM_Signal_Interrupt PCINT1_vect
 #define PPM_Signal_Edge_Check ((PINC & 0x20)==0x20)
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
@@ -114,7 +78,7 @@ void buzzerOn(uint16_t freq)
 #define IRQ_pin 3
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -124,7 +88,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 1
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -159,7 +123,7 @@ HardwareSerial *rcSerial = &Serial;
 #define PPM_Signal_Interrupt PCINT2_vect
 #define PPM_Signal_Edge_Check ((PIND & 0x20)==0x20)
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
@@ -198,7 +162,7 @@ void buzzerOn(uint16_t freq)
 #define IRQ_pin 3
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -208,7 +172,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -233,7 +197,7 @@ void setupRfmInterrupt()
 #define PPM_Signal_Interrupt PCINT2_vect
 #define PPM_Signal_Edge_Check ((PIND & 0x08)==0x08)
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
@@ -291,7 +255,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 6, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   rx_config.rx_type = RX_FLYTRONM3;
   rx_config.pinMapping[0] = PINMAP_PPM;
@@ -337,7 +301,7 @@ HardwareSerial *rcSerial = &Serial;
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -347,7 +311,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -375,18 +339,12 @@ HardwareSerial *rcSerial = &Serial;
 #define BUZZER_PAS 3
 #define BTN 7
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
   TCCR2A = (1<<WGM21); // mode=CTC
-#if (F_CPU == 16000000)
   TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
-#elif (F_CPU == 8000000)
-  TCCR2B = (1<<CS22); // prescaler = 64
-#else
-#errror F_CPU Invalid
-#endif
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -425,7 +383,7 @@ const pinMask_t OUTPUT_MASKS[OUTPUTS] = {
   {0x00,0x00,0x02},                                   // TXD
 };
 
-const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12 , A4, A5, 0, 1};
+const uint8_t OUTPUT_PIN[OUTPUTS] = { 3, 5, 6, 7, 8, 9, 10, 11, 12, A4, A5, 0, 1};
 
 #define PPM_OUTPUT  5
 #define RSSI_OUTPUT 0
@@ -453,7 +411,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 12, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   uint8_t i;
   rx_config.rx_type = RX_FLYTRON8CH;
@@ -507,7 +465,7 @@ void rxInitHWConfig()
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -517,7 +475,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -551,16 +509,10 @@ HardwareSerial *rcSerial = &Serial;
 
 #define RF_OUT_INDICATOR A3 // only used for Futaba
 
-void buzzerInit()
+void buzzerInit(void)
 {
   TCCR2A = (1<<WGM21); // mode=CTC
-#if (F_CPU == 16000000)
   TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
-#elif (F_CPU == 8000000)
-  TCCR2B = (1<<CS22); // prescaler = 64
-#else
-#errror F_CPU Invalid
-#endif
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -615,7 +567,7 @@ void buzzerOn(uint16_t freq)
 #define nSel_pin 4
 #define SDN_pin 9
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -625,7 +577,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -654,18 +606,12 @@ HardwareSerial *rcSerial = &Serial;
 #define BUZZER_ACT A5
 #define BTN     A4
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
   TCCR2A = (1<<WGM21); // mode=CTC
-#if (F_CPU == 16000000)
   TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
-#elif (F_CPU == 8000000)
-  TCCR2B = (1<<CS22); // prescaler = 64
-#else
-#errror F_CPU Invalid
-#endif
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -742,7 +688,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 7, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   rx_config.rx_type = RX_OLRSNG4CH;
   rx_config.pinMapping[0] = PINMAP_PPM;
@@ -797,7 +743,7 @@ void rxInitHWConfig()
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -807,7 +753,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -844,7 +790,7 @@ HardwareSerial *rcSerial = &Serial1;
 #define Red_LED 6 //PD7
 #define Green_LED 5 //PC6
 
-void buzzerInit()
+void buzzerInit(void)
 {
   TCCR4B = (1<<CS43); // prescaler = 128
   pinMode(BUZZER_PAS, OUTPUT);
@@ -900,7 +846,7 @@ void buzzerOn(uint16_t freq)
 #define nSel_pin 12
 
 
-void setupSPI()
+void setupSPI(void)
 {
   DDRB |= (1<<DDB1); // SCK PB1 output
   DDRB |= (1<<DDB2); // SDI/MOSI PB2 output
@@ -909,7 +855,7 @@ void setupSPI()
   pinMode(nSel_pin, OUTPUT);   //nSEL
 }
 
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   PCMSK0 |= (1<<PCINT7); //enable pin change interrupt
   PCICR |= (1<<PCIE0);
@@ -945,7 +891,7 @@ HardwareSerial *rcSerial = &Serial;
 #define BUZZER_ACT A1
 #define BTN     A5 // Shorting SCL to GND will bind
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
@@ -1014,7 +960,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 7, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   rx_config.rx_type = RX_PTOWER;
   rx_config.pinMapping[0] = PINMAP_PPM;
@@ -1069,7 +1015,7 @@ void rxInitHWConfig()
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -1079,7 +1025,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -1106,18 +1052,12 @@ HardwareSerial *rcSerial = &Serial;
 #define BUZZER_ACT A5
 #define BTN     A4
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
   TCCR2A = (1<<WGM21); // mode=CTC
-#if (F_CPU == 16000000)
   TCCR2B = (1<<CS22) | (1<<CS20); // prescaler = 128
-#elif (F_CPU == 8000000)
-  TCCR2B = (1<<CS22); // prescaler = 64
-#else
-#errror F_CPU Invalid
-#endif
   pinMode(BUZZER_PAS, OUTPUT);
   digitalWrite(BUZZER_PAS, LOW);
 }
@@ -1184,7 +1124,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 5, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   rx_config.rx_type = RX_MICRO;
   rx_config.pinMapping[0] = PINMAP_PPM;
@@ -1228,7 +1168,7 @@ void rxInitHWConfig()
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -1238,7 +1178,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }
@@ -1264,7 +1204,7 @@ HardwareSerial *rcSerial = &Serial;
 #define BUZZER_ACT 10
 #define BTN     A5 // Shorting SCL to GND will bind
 
-void buzzerInit()
+void buzzerInit(void)
 {
   pinMode(BUZZER_ACT, OUTPUT);
   digitalWrite(BUZZER_ACT, LOW);
@@ -1332,7 +1272,7 @@ struct rxSpecialPinMap rxSpecialPins[] = {
   { 10, PINMAP_SUMD},
 };
 
-void rxInitHWConfig()
+void rxInitHWConfig(void)
 {
   rx_config.rx_type = RX_BRORX;
   rx_config.pinMapping[0] = PINMAP_PPM;
@@ -1389,7 +1329,7 @@ void rxInitHWConfig()
 #define IRQ_pin 2
 #define nSel_pin 4
 
-void setupSPI()
+void setupSPI(void)
 {
   pinMode(SDO_pin, INPUT);   //SDO
   pinMode(SDI_pin, OUTPUT);   //SDI
@@ -1399,7 +1339,7 @@ void setupSPI()
 }
 
 #define IRQ_interrupt 0
-void setupRfmInterrupt()
+void setupRfmInterrupt(void)
 {
   attachInterrupt(IRQ_interrupt, RFM22B_Int, FALLING);
 }

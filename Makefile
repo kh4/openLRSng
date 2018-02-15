@@ -225,14 +225,13 @@ $(LIBRARIES_FOLDER)/libcore.a: $(ARDUINO_CORELIB_OBJS)
 	@$(AR) rcs $(LIBRARIES_FOLDER)/libcore.a $(ARDUINO_CORELIB_OBJS)
 
 astyle:
-	$(ASTYLE) $(ASTYLEOPTIONS) openLRSng.ino *.h
+	$(ASTYLE) $(ASTYLEOPTIONS) $(SOURCES_FOLDER)/openLRSng.ino $(SOURCES_FOLDER)/*.h
 
 433 868 915:
 	$(RM) -rf $(OUT_FOLDER)/$@
 	$(MKDIR) -p $(OUT_FOLDER)/$@
 	$(foreach type, $(BOARD_TYPES_RX), make -s RFMTYPE=$@ COMPILE_TX=0 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-$(type).hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/RX-$(type)-bl.hex;)
 	$(foreach type, $(BOARD_TYPES_TX), make -s RFMTYPE=$@ COMPILE_TX=1 BOARD_TYPE=$(type) clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/TX-$(type).hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/TX-$(type)-bl.hex;)
-	make -s RFMTYPE=$@ COMPILE_TX=0 BOARD_TYPE=8 CLOCK=8000000 clean_compilation_products all && cp openLRSng.hex $(OUT_FOLDER)/$@/RX-8-8MHz.hex && cp openLRSngBL.hex $(OUT_FOLDER)/$@/RX-8-8MHz-bl.hex
 	$(LS) -l $(OUT_FOLDER)
 
 allfw: 433 868 915

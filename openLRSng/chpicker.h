@@ -1,25 +1,15 @@
 #ifndef _CHPICKER_H_
 #define _CHPICKER_H_
 
-//OpenLRSng adaptive channel picker
+// adaptive channel picker
 
-inline void swap(uint8_t *a, uint8_t i, uint8_t j)
-{
-  uint8_t c = a[i];
-  a[i] = a[j];
-  a[j] = c;
-}
+// prototypes
+void swap(uint8_t *a, uint8_t i, uint8_t j);
+void isort(uint8_t *a, uint8_t n);
+uint8_t chooseChannelsPerRSSI(void);
 
-inline void isort(uint8_t *a, uint8_t n)
-{
-  for (uint8_t i = 1; i < n; i++) {
-    for (uint8_t j = i; j > 0 && a[j] < a[j-1]; j--) {
-      swap(a, j, j - 1);
-    }
-  }
-}
 
-uint8_t chooseChannelsPerRSSI()
+uint8_t chooseChannelsPerRSSI(void)
 {
   uint8_t chRSSImax[255];
   uint8_t picked[20];
@@ -94,6 +84,22 @@ uint8_t chooseChannelsPerRSSI()
   Serial.println();
 
   return 1;
+}
+
+void swap(uint8_t *a, uint8_t i, uint8_t j)
+{
+  uint8_t c = a[i];
+  a[i] = a[j];
+  a[j] = c;
+}
+
+void isort(uint8_t *a, uint8_t n)
+{
+  for (uint8_t i = 1; i < n; i++) {
+    for (uint8_t j = i; j > 0 && a[j] < a[j-1]; j--) {
+      swap(a, j, j - 1);
+    }
+  }
 }
 
 #endif
