@@ -36,6 +36,7 @@ bool binary_mode_active = false;
 #define PSP_SET_RX_FAILSAFE             108
 #define PSP_SET_TX_CONFIG               109
 #define PSP_SET_DEFAULT_PROFILE         110
+#define PSP_SET_RX_BIND_SAVE            111
 
 #define PSP_SET_EXIT                    199
 
@@ -337,7 +338,7 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     }
     break;
 
-    // SET
+  // SET
   case PSP_SET_BIND_DATA:
     PSP_protocol_head(PSP_SET_BIND_DATA, 1);
 
@@ -376,6 +377,28 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
       if (RF_Mode == RECEIVED) {
         rfmGetPacket(tx_buf, 1);
         if (tx_buf[0] == 'U') {
+          PSP_serialize_uint8(0x01); // success
+        } else {
+          PSP_serialize_uint8(0x00); // fail
+        }
+      } else {
+        PSP_serialize_uint8(0x00); // fail
+      }
+    }
+    break;
+  case PSP_SET_RX_BIND_SAVE:
+    PSP_protocol_head(PSP_SET_RX_BIND_SAVE, 1);
+    {
+      uint8_t tx_buf[sizeof(bind_data) + 1];
+      tx_buf[0] = 'd';
+      memcpy((tx_buf + 1), &bind_data, sizeof(bind_data));
+      tx_packet(tx_buf, sizeof(tx_buf));
+      rx_reset();
+      delay(800);
+
+      if (RF_Mode == RECEIVED) {
+        rfmGetPacket(tx_buf, 1);
+        if (tx_buf[0] == 'D') {
           PSP_serialize_uint8(0x01); // success
         } else {
           PSP_serialize_uint8(0x00); // fail
@@ -426,7 +449,7 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     PSP_protocol_head(PSP_SET_RX_FAILSAFE, 1);
     {
       uint8_t rxtx_buf[(PPM_CHANNELS * 2) + 1];
- 
+
       if (payload_length_received == (PPM_CHANNELS * 2)) {
         rxtx_buf[0] = 'g';
         memcpy((rxtx_buf + 1), data_buffer, (PPM_CHANNELS * 2));
@@ -502,12 +525,12 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
   case PSP_REQ_RX_CONFIG:
     PSP_protocol_head(PSP_REQ_RX_CONFIG, sizeof(rx_config));
     {
-    if (watchdogUsed) {
-      rx_config.flags|=WATCHDOG_USED;
-    } else {
-      rx_config.flags&=~WATCHDOG_USED;
-    }
-    rx_config.rx_type &= ~0xC0;
+      if (watchdogUsed) {
+        rx_config.flags|=WATCHDOG_USED;
+      } else {
+        rx_config.flags&=~WATCHDOG_USED;
+      }
+      rx_config.rx_type &= ~0xC0;
 #if (RFMTYPE == 868)
       rx_config.rx_type |= (0x01 << 6);
 #elif (RFMTYPE == 915)
@@ -520,19 +543,19 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     break;
   case PSP_REQ_RX_JOIN_CONFIGURATION:
     PSP_protocol_head(PSP_REQ_RX_JOIN_CONFIGURATION, 1);
-  {
-        PSP_serialize_uint8(0x01);
+    {
+      PSP_serialize_uint8(0x01);
     }
-  break;
+    break;
   case PSP_REQ_SCANNER_MODE:
     PSP_protocol_head(PSP_REQ_SCANNER_MODE, 1);
-  {
-        PSP_serialize_uint8(0x01);
-        PSP_protocol_tail();
-        scannerMode();
-        return;
+    {
+      PSP_serialize_uint8(0x01);
+      PSP_protocol_tail();
+      scannerMode();
+      return;
     }
-  break;
+    break;
   case PSP_REQ_SPECIAL_PINS:
     PSP_protocol_head(PSP_REQ_SPECIAL_PINS, sizeof(rxSpecialPins));
     {
@@ -554,72 +577,83 @@ void PSP_process_data(uint8_t code, uint16_t payload_length_received, uint8_t da
     }
     break;
   case PSP_REQ_RX_FAILSAFE:
-  PSP_protocol_head(PSP_REQ_RX_FAILSAFE, (PPM_CHANNELS * 2));
-  {
-    for (uint8_t i = 0; i < PPM_CHANNELS; i++) {
-      PSP_serialize_uint16(failsafePPM[i]); // failsafe data
+    PSP_protocol_head(PSP_REQ_RX_FAILSAFE, (PPM_CHANNELS * 2));
+    {
+      for (uint8_t i = 0; i < PPM_CHANNELS; i++) {
+        PSP_serialize_uint16(failsafePPM[i]); // failsafe data
+      }
     }
-  }
-  break;
+    break;
 
-    // SET
+  // SET
   case PSP_SET_RX_CONFIG:
     PSP_protocol_head(PSP_SET_RX_CONFIG, 1);
-  {
-    if (payload_length_received == sizeof(rx_config)) {
-      for (uint8_t i = 0; i < sizeof(rx_config); i++) {
-        AS_U8ARRAY(&rx_config)[i] = data_buffer[i];
+    {
+      if (payload_length_received == sizeof(rx_config)) {
+        for (uint8_t i = 0; i < sizeof(rx_config); i++) {
+          AS_U8ARRAY(&rx_config)[i] = data_buffer[i];
+        }
+        PSP_serialize_uint8(0x01);
+      } else {
+        PSP_serialize_uint8(0x00);
       }
-      PSP_serialize_uint8(0x01);
-    } else {
-      PSP_serialize_uint8(0x00);
     }
-  }
     break;
 
   case PSP_SET_RX_SAVE_EEPROM:
     PSP_protocol_head(PSP_SET_RX_SAVE_EEPROM, 1);
-  {
-    accessEEPROM(0, true);
-    PSP_serialize_uint8(0x01); // success
+    {
+      accessEEPROM(0, true);
+      PSP_serialize_uint8(0x01); // success
     }
+    break;
+  case PSP_SET_RX_BIND_SAVE:
+    PSP_protocol_head(PSP_SET_RX_BIND_SAVE, 1);
+	{
+    if (payload_length_received == sizeof(bind_data)) {
+      memcpy(&bind_data, data_buffer, sizeof(bind_data));
+      PSP_serialize_uint8(0x01); // success
+    } else {
+      PSP_serialize_uint8(0x00); // fail
+    }
+  }
   break;
-  case PSP_SET_RX_RESTORE_DEFAULT:
-    PSP_protocol_head(PSP_SET_RX_RESTORE_DEFAULT, 1);
+case PSP_SET_RX_RESTORE_DEFAULT:
+  PSP_protocol_head(PSP_SET_RX_RESTORE_DEFAULT, 1);
   {
     rxInitDefaults(1);
     PSP_serialize_uint8(0x01); // success
-    }
+  }
   break;
-  case PSP_SET_RX_FAILSAFE:
-    PSP_protocol_head(PSP_SET_RX_FAILSAFE, 1);
-    {
-      if (payload_length_received == (PPM_CHANNELS * 2)) {
-        memcpy(failsafePPM, data_buffer, sizeof(failsafePPM));
-      } else {
-        memset(failsafePPM,0,sizeof(failsafePPM));
-      }
+case PSP_SET_RX_FAILSAFE:
+  PSP_protocol_head(PSP_SET_RX_FAILSAFE, 1);
+  {
+    if (payload_length_received == (PPM_CHANNELS * 2)) {
+      memcpy(failsafePPM, data_buffer, sizeof(failsafePPM));
+    } else {
+      memset(failsafePPM,0,sizeof(failsafePPM));
+    }
     failsafeSave();
     PSP_serialize_uint8(0x01);
-    }
-    break;
-  case PSP_SET_EXIT:
-    PSP_protocol_head(PSP_SET_EXIT, 1);
+  }
+  break;
+case PSP_SET_EXIT:
+  PSP_protocol_head(PSP_SET_EXIT, 1);
   {
     PSP_serialize_uint8(0x01);
     PSP_protocol_tail();
     binary_mode_active = false;
     return;
   }
-    break;
-  default: // Unrecognized code
-    PSP_protocol_head(PSP_INF_REFUSED, 1);
+  break;
+default: // Unrecognized code
+  PSP_protocol_head(PSP_INF_REFUSED, 1);
 
-    PSP_serialize_uint8(0x00);
-  }
+  PSP_serialize_uint8(0x00);
+}
 
-  // send over crc
-  PSP_protocol_tail();
+// send over crc
+PSP_protocol_tail();
 }
 #endif
 

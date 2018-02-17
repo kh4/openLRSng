@@ -171,7 +171,7 @@ inline size_t debugPrint(const char str[])
 {
   size_t result = 0;
   if (!(bind_data.flags & TELEMETRY_MASK)) {
-      result = rcSerial->print(str);
+    result = rcSerial->print(str);
   } else {
 #ifdef USE_CONSOLE_SERIAL
     result = consoleSerial->print(str);
@@ -215,7 +215,7 @@ inline int consoleRead()
   result = consoleSerial->read();
 #else
   if (bndMode || serialMode == SERIAL_MODE_NONE) {
-      result = rcSerial->read();
+    result = rcSerial->read();
   }
 #endif
   return result;
@@ -228,7 +228,7 @@ inline size_t consolePrint(const char* str)
   result = consoleSerial->print(str);
 #else
   if (bndMode || !(bind_data.flags & TELEMETRY_MASK)) {
-      result = rcSerial->print(str);
+    result = rcSerial->print(str);
   }
 #endif
   return result;
@@ -244,7 +244,7 @@ inline HardwareSerial *getConsoleSerial()
 {
   HardwareSerial *result = NULL;
   if (bndMode || !(bind_data.flags & TELEMETRY_MASK)) {
-      result = rcSerial;
+    result = rcSerial;
   }
   return result;
 }
@@ -318,6 +318,7 @@ void bindMode(void)
 #ifdef CONFIGURATOR
       case 'B':
         binaryMode();
+        sendBinds = 0; // do not return to bind mode
         break;
 #endif
       default:
@@ -474,7 +475,8 @@ uint8_t serial_head = 0;
 uint8_t serial_tail = 0;
 uint8_t serial_okToSend = 0; // 2 if it is ok to send serial instead of servo
 
-inline void doBeeps(uint8_t numBeeps) {
+inline void doBeeps(uint8_t numBeeps)
+{
   for (uint8_t i = 0; i <= numBeeps; i++) {
     delay(50);
     buzzerOn(BZ_FREQ);
@@ -535,7 +537,7 @@ void configureProfile(void)
   if (bind_data.flags & TELEMETRY_MASK) {
     if (bind_data.flags & TELEMETRY_FRSKY) {
       frskyInit(rcSerial, (bind_data.flags & TELEMETRY_MASK) == TELEMETRY_SMARTPORT,
-        serialMode != SERIAL_MODE_NONE);
+                serialMode != SERIAL_MODE_NONE);
     } else {
       // ?
     }
@@ -736,7 +738,8 @@ static inline void processSBUS(uint8_t c)
   lastSerialPPM = millis();
 }
 
-static inline uint16_t multiToPpm(uint16_t input) {
+static inline uint16_t multiToPpm(uint16_t input)
+{
   int32_t value = input;
   // Taken from https://github.com/pascallanger/DIY-Multiprotocol-TX-Module/blob/master/Multiprotocol/Multiprotocol.h#L478-L483
   value = (((value - 204) * 1000) / 1639) + 1000;
@@ -774,7 +777,7 @@ static inline void processMulti(uint8_t c)
       uint8_t oldMultiProfile = multiProfile;
       multiProfile = multiWork[1] & 0x0f;
       if (multiProfile != oldMultiProfile) {
-          multiLastProfileChange = timestamp;
+        multiLastProfileChange = timestamp;
       }
 
       multiLowPower = multiWork[1] & 0x80;
@@ -940,7 +943,7 @@ uint16_t getChannel(uint8_t ch)
 
 void loop(void)
 {
-    watchdogReset();
+  watchdogReset();
 #ifdef DEBUG_DUMP_PPM
   if (ppmDump) {
     uint32_t timeTMP = millis();
@@ -985,7 +988,7 @@ void loop(void)
     }
     linkQuality |= 1;
 
-  rfmGetPacket(rx_buf, TELEMETRY_PACKETSIZE);
+    rfmGetPacket(rx_buf, TELEMETRY_PACKETSIZE);
 
     if ((tx_buf[0] ^ rx_buf[0]) & 0x40) {
       tx_buf[0] ^= 0x40; // swap sequence to ack
@@ -1131,9 +1134,9 @@ void loop(void)
 
       if (serialMode == SERIAL_MODE_MULTI && multiRangeCheck) {
         if (power > 3) {
-            power = power - 3;
+          power = power - 3;
         } else {
-            power = 0;
+          power = 0;
         }
       }
 

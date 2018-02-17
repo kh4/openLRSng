@@ -327,10 +327,10 @@ void loop(void)
 
   timeUs = micros();
   timeMs = millis();
-  pktTimeDelta = (timeUs - lastPacketTimeUs);  
+  pktTimeDelta = (timeUs - lastPacketTimeUs);
 
   checkRSSI();
-  
+
   if (linkAcquired) {
     // check RC link status after initial 'lock'
     checkLinkState();
@@ -462,7 +462,7 @@ void processPacketRC(void)
 
 void processPacketData(void)
 {
-  // process serial / data up-link packet 
+  // process serial / data up-link packet
   if ((rx_buf[0] ^ tx_buf[0]) & 0x80) {
     // We got new data... (not retransmission)
     uint8_t i;
@@ -886,14 +886,20 @@ uint8_t bindReceive(uint32_t timeout)
       len=rfmGetPacketLength();
       rfmGetPacket(rxc_buf, len);
       switch((char) rxc_buf[0]) {
-      case 'b': { // GET bind_data
+      case 'b': // SET bind_data via TX packet
+      case 'd': { // SET bind_data via config proto
         memcpy(&bind_data, (rxc_buf + 1), sizeof(bind_data));
         if (bind_data.version == BINDING_VERSION) {
-          Serial.println("data good");
-          rxc_buf[0] = 'B';
+          rxc_buf[0] = ((char) rxc_buf[0] == 'b' ) ? 'B' : 'D';
           tx_packet(rxc_buf, 1); // ACK that we got bound
-          Green_LED_ON; //signal we got bound on LED:s
-          return 1;
+
+          if ((char) rxc_buf[0] == 'B') {
+            Serial.println("data good");
+            Green_LED_ON; //signal we got bound on LED:s
+            return 1;
+          } else {
+            bindWriteEeprom(); //save EEPROM
+          }
         }
       }
       break;
@@ -936,7 +942,7 @@ uint8_t bindReceive(uint32_t timeout)
       case 'f': { // GET failsafe channel values
         rxc_buf[0]='F';
         memcpy((rxc_buf + 1), failsafePPM, sizeof(failsafePPM));
-		tx_packet(rxc_buf, (sizeof(failsafePPM) + 1));
+        tx_packet(rxc_buf, (sizeof(failsafePPM) + 1));
       }
       break;
       case 'g': { // SET failsafe channel values
